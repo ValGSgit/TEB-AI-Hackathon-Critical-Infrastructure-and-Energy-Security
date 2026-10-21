@@ -17,5 +17,8 @@ def test_export_shape():
             assert s["end"] > s["start"]
             assert zones[s["zone"]] in allowed[s["workload"]]      # the UI's residency view relies on this
         assert r["carbon_series"][-1]["carbon_kg"] >= r["carbon_series"][0]["carbon_kg"]
+    for wid, ls in d["landscapes"].items():
+        assert set(ls["zones"]) <= {z for z, c in zones.items() if c in allowed[wid]}   # only legal zones offered
+        assert all(len(row) == len(ls["hours"]) for row in ls["grams"])
     ca = next(r for r in d["runs"] if r["policy"] == "carbon-aware")
     assert all(x["decision"] in ("wait", "start") for x in ca["decisions"])

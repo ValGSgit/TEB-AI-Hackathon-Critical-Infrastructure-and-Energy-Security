@@ -103,6 +103,11 @@ td.r,th.r{text-align:right}
 td.reason{white-space:normal;min-width:260px;color:var(--ink-2)}
 .logbox{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px}
 .foot{font-size:.76rem;color:var(--muted);line-height:1.6}
+.ladder td{vertical-align:middle}
+.ladder td.chg{white-space:normal;min-width:240px;color:var(--ink-2)}
+.lbar{display:flex;align-items:center;gap:8px}
+.lbar i{display:block;height:12px;border-radius:0 4px 4px 0;min-width:2px}
+.lbar span{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.8rem;white-space:nowrap}
 .empty{padding:24px;text-align:center;color:var(--muted);font-size:.85rem}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -130,15 +135,24 @@ td.reason{white-space:normal;min-width:260px;color:var(--ink-2)}
       <div style="display:grid;gap:2px"><h2 id="h-gantt">Allocation timeline</h2>
         <p>When each workload ran, where, and in which phase. Hatched: released but deliberately waiting for cleaner power. "no ckpt": restart-sensitive, loses all progress if stopped. Click a row for details.</p></div>
       <div class="legend">
-        <span><i class="sw" style="background:var(--boot)"></i>Boot</span>
-        <span><i class="sw" style="background:var(--setup)"></i>Setup</span>
+        <span><i class="sw" style="background:var(--boot)"></i>Booting</span>
+        <span><i class="sw" style="background:var(--setup)"></i>Input/setup</span>
         <span><i class="sw" style="background:var(--run)"></i>Computing</span>
-        <span><i class="sw" style="background:var(--deliver)"></i>Delivering output</span>
+        <span><i class="sw" style="background:var(--deliver)"></i>Output waiting</span>
         <span><svg width="14" height="10" aria-hidden="true"><rect width="14" height="10" fill="url(#hatchL)" stroke="var(--axis)"/></svg>Waiting</span>
         <span><svg width="10" height="12" aria-hidden="true"><path d="M5 0V12" stroke="var(--crit)" stroke-width="2"/></svg>Deadline</span>
       </div>
     </div>
     <div class="scroll" id="gantt"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-ladder" id="ladderCard">
+    <div class="card-h">
+      <div style="display:grid;gap:2px"><h2 id="h-ladder">Experiment ladder</h2>
+        <p>One change at a time, each on the same practice scenarios, so the difference comes from the policy. Bars: average realized carbon.</p></div>
+      <span class="eyebrow" id="ladderNote"></span>
+    </div>
+    <div class="scroll"><table class="ladder"><thead><tr><th>Step</th><th>What changed</th><th style="min-width:220px">Average carbon</th><th class="r">vs baseline</th><th class="r">Energy</th><th class="r">Score (stand-in)</th><th class="r">All on time</th></tr></thead><tbody id="ladder"></tbody></table></div>
   </section>
 
   <section class="grid2">
@@ -154,6 +168,15 @@ td.reason{white-space:normal;min-width:260px;color:var(--ink-2)}
       <div class="card-h"><h2 id="h-detail">Selected workload</h2><span class="eyebrow" id="detailId"></span></div>
       <div class="detail" id="detail"></div>
     </div>
+  </section>
+
+  <section class="card" aria-labelledby="h-land">
+    <div class="card-h">
+      <div style="display:grid;gap:2px"><h2 id="h-land">Options at release: <span id="landName">pick a workload</span></h2>
+        <p>Every legal zone and start hour the planner could choose when the job was released, with its estimated carbon from the forecast available then. Hatched: too late to finish safely.</p></div>
+      <div class="legend" id="landLegend"></div>
+    </div>
+    <div class="scroll" id="land"></div>
   </section>
 
   <section class="card" aria-labelledby="h-fc">
@@ -209,13 +232,15 @@ td.reason{white-space:normal;min-width:260px;color:var(--ink-2)}
 </defs></svg>
 
 <script type="application/json" id="run-data">/*__DATA__*/</script>
+<script type="application/json" id="exp-data">/*__EXP__*/</script>
 <script>
 "use strict";
 const NS = "http://www.w3.org/2000/svg";
 const $ = id => document.getElementById(id);
-const PHASE = {booting:{c:"var(--boot)",n:"Boot"}, setup:{c:"var(--setup)",n:"Setup"}, running:{c:"var(--run)",n:"Computing"},
-               delivering:{c:"var(--deliver)",n:"Delivering output"}, done:{c:"var(--idle)",n:"Idle (not yet deleted)"}};
-let D = null, runIdx = 0, sel = null;
+const PHASE = {booting:{c:"var(--boot)",n:"Booting"}, setup:{c:"var(--setup)",n:"Input/setup"}, running:{c:"var(--run)",n:"Computing"},
+               delivering:{c:"var(--deliver)",n:"Output waiting"}, done:{c:"var(--idle)",n:"Idle (not yet deleted)"}, stopped:{c:"var(--idle)",n:"Stopped"}};
+let D = null, runIdx = 0, sel = null, E = null;
+try{ const raw=document.getElementById("exp-data").textContent.trim(); if(raw && !raw.startsWith("/*")) E=JSON.parse(raw); }catch(e){ E=null; }
 
 function s(tag, attrs, parent, text){ const e=document.createElementNS(NS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); if(text!=null) e.textContent=text; if(parent) parent.appendChild(e); return e; }
 function h(tag, attrs, parent, text){ const e=document.createElement(tag); for(const k in (attrs||{})) e.setAttribute(k,attrs[k]); if(text!=null) e.textContent=text; if(parent) parent.appendChild(e); return e; }
@@ -295,7 +320,8 @@ function renderGantt(){
     const y=top+i*rowH, wr=r.workloads[w.id];
     const g=s("g",{class:"row-hit"+(sel===w.id?" sel":""),tabindex:0,role:"button","aria-label":`${w.id}, details`},svg);
     s("rect",{class:"rowbg",x:0,y:y,width:Wd,height:rowH,fill:"transparent"},g);
-    s("text",{x:8,y:y+17,"font-size":12.5,"font-weight":600,fill:"var(--ink)",style:"fill:var(--ink)"},g,w.id);
+    const nm=s("text",{x:8,y:y+17,"font-size":12.5,"font-weight":600,fill:"var(--ink)",style:"fill:var(--ink)"},g,w.id.slice(0,4));
+    s("title",{},nm,`${w.id} · ${w.name||""}`);
     s("text",{x:56,y:y+17,"font-size":10.5,class:"tick"},g,(w.kind==="gpu"?"GPU":"CPU")+(w.checkpoint_h==null?" ·no ckpt":""));
     s("rect",{x:X(w.release_h),y:y+4,width:Math.max(1,X(w.deadline_h)-X(w.release_h)),height:rowH-8,fill:"var(--band)",rx:3},g);
     if(wr.first_start!=null && wr.first_start-w.release_h>0.3)
@@ -333,6 +359,7 @@ function renderHeat(){
   zones.forEach((z,i)=>{
     const y=top+i*rowH, allowed = !selW || selW.allowed_countries.includes(z.country);
     s("text",{x:6,y:y+15,"font-size":11.5,style:`fill:${allowed?"var(--ink)":"var(--muted)"}`},svg,z.id);
+    if(z.city) s("title",{},svg.lastChild,`${z.city}${z.real_zone===false?" (fictional game zone)":""}`);
     s("text",{x:L-8,y:y+15,"text-anchor":"end",class:"tick"},svg,z.country);
     const row=s("g",{opacity:allowed?1:.35},svg);
     D.carbon_actual[z.id].forEach((v,t)=>{
@@ -379,6 +406,7 @@ function renderDetail(){
   const w=W(sel), wr=run().workloads[sel], wo=other().workloads[sel];
   const decs=(run().decisions||[]).filter(d=>d.workload===sel);
   $("detailId").textContent=`${w.kind.toUpperCase()} · ${w.max_workers} worker${w.max_workers>1?"s":""} max`;
+  h("div",{style:"font-weight:600;font-size:.95rem"},box,`${w.name||w.id}`); h("div",{class:"mono muted",style:"font-size:.76rem;margin-top:-6px"},box,w.id);
   h("div",{class:"why"},box,reasonFor(w,wr,decs));
   const row=(k,fill)=>{ const r=h("div",{class:"row"},box); h("span",{class:"k"},r,k); const v=h("span",{},r); fill(v); };
   row("Outcome",v=>{ h("span",{class:"pill "+(wr.delivered?"good":"crit")},v, wr.delivered?"✓ delivered "+hr(wr.delivered_at):"✗ not delivered"); });
@@ -451,7 +479,7 @@ function renderDumb(){
   rows.forEach((r,i)=>{ const y=top+i*rowH+rowH/2;
     const g=s("g",{class:"row-hit"},svg);
     s("rect",{x:0,y:y-rowH/2,width:Wd,height:rowH,fill:"transparent"},g);
-    s("text",{x:4,y:y+4,"font-size":11,style:`fill:${sel===r.id?"var(--ink)":"var(--ink-2)"};font-weight:${sel===r.id?600:400}`},g,r.id);
+    const lt=s("text",{x:4,y:y+4,"font-size":11,style:`fill:${sel===r.id?"var(--ink)":"var(--ink-2)"};font-weight:${sel===r.id?600:400}`},g,r.id.slice(0,4)); s("title",{},lt,(W(r.id).name||r.id));
     s("line",{x1:X(Math.min(r.a,r.b)),x2:X(Math.max(r.a,r.b)),y1:y,y2:y,stroke:"var(--axis)","stroke-width":2},g);
     s("circle",{cx:X(r.b),cy:y,r:4.5,fill:"var(--base)",stroke:"var(--surface)","stroke-width":2},g);
     s("circle",{cx:X(r.a),cy:y,r:4.5,fill:"var(--run)",stroke:"var(--surface)","stroke-width":2},g);
@@ -492,7 +520,7 @@ function renderRes(){
   const svg=s("svg",{width:Wd,height:Hh,viewBox:`0 0 ${Wd} ${Hh}`,role:"img","aria-label":"Allowed and used countries per workload"},host);
   countries.forEach((c,j)=>s("text",{x:L+j*cw+cw/2,y:14,"text-anchor":"middle",class:"tick"},svg,c));
   D.workloads.forEach((w,i)=>{ const y=top+i*rowH; const used=new Set(r.workloads[w.id].zones_used.map(zid=>D.zones.find(z=>z.id===zid).country));
-    s("text",{x:4,y:y+12,"font-size":11,style:`fill:${sel===w.id?"var(--ink)":"var(--ink-2)"};font-weight:${sel===w.id?600:400}`},svg,w.id);
+    const rt=s("text",{x:4,y:y+12,"font-size":11,style:`fill:${sel===w.id?"var(--ink)":"var(--ink-2)"};font-weight:${sel===w.id?600:400}`},svg,w.id.slice(0,4)); s("title",{},rt,w.name||w.id);
     countries.forEach((c,j)=>{ const ok=w.allowed_countries.includes(c), u=used.has(c);
       const fill= u ? (ok?"var(--run)":"var(--crit)") : ok ? "var(--accent-soft)" : "transparent";
       const rc=s("rect",{x:L+j*cw+2,y:y+2,width:cw-4,height:rowH-4,rx:2,fill,stroke:"var(--line)"},svg);
@@ -520,11 +548,73 @@ function renderLog(){
   });
 }
 
+/* ---------- experiment ladder ---------- */
+function renderLadder(){
+  const card=$("ladderCard"), tb=$("ladder"); tb.textContent="";
+  if(!E || !E.rungs){ card.hidden=true; return; } card.hidden=false;
+  $("ladderNote").textContent=`${E.seeds} practice scenarios`;
+  const base=E.rungs[0], maxC=Math.max(...E.rungs.map(r=>r.carbon_mean||0));
+  E.rungs.forEach((r,i)=>{
+    const tr=h("tr",{},tb);
+    const td0=h("td",{},tr); h("div",{style:"font-weight:600"},td0,r.label); h("div",{class:"mono muted",style:"font-size:.72rem"},td0,`step ${i}`);
+    h("td",{class:"chg"},tr,r.change);
+    const tdb=h("td",{},tr), lb=h("div",{class:"lbar"},tdb);
+    const col = r.key==="baseline" ? "var(--base)" : r.key==="no-cleanup" ? "var(--setup)" : "var(--run)";
+    h("i",{style:`width:${Math.max(2,(r.carbon_mean/maxC)*180)}px;background:${col}`},lb); h("span",{},lb,`${r.carbon_mean.toFixed(1)} kg`);
+    const pct=base.carbon_mean? (r.carbon_mean/base.carbon_mean-1)*100 : 0;
+    const tdp=h("td",{class:"r"},tr); if(i===0) tdp.textContent="–"; else h("span",{class:"pill "+(pct<=0?"good":"crit")},tdp,(pct<=0?"▼ ":"▲ ")+Math.abs(pct).toFixed(0)+"%");
+    h("td",{class:"r num"},tr,`${r.energy_mean} kWh`);
+    h("td",{class:"r num"},tr,r.score_mean.toLocaleString("en"));
+    h("td",{class:"r num"},tr,`${r.all_done}/${E.seeds}`+(r.disqualified?` · ${r.disqualified} DQ`:""));
+  });
+}
+
+/* ---------- options landscape ---------- */
+function renderLand(){
+  const host=$("land"); host.textContent=""; const lg=$("landLegend"); lg.textContent="";
+  const ls = sel && D.landscapes ? D.landscapes[sel] : null;
+  $("landName").textContent = sel ? (W(sel).name||sel) : "pick a workload";
+  if(!ls || !ls.hours.length){ h("div",{class:"empty"},host, sel? "No option data for this workload." : "Click a workload in the timeline."); return; }
+  const w=W(sel), wr=run().workloads[sel];
+  const vals=ls.grams.flat().filter(v=>v!=null); if(!vals.length){ h("div",{class:"empty"},host,"No safe option existed at release."); return; }
+  const lo=Math.min(...vals), hi=Math.max(...vals);
+  const Wd=Math.max(560,host.clientWidth||800), L=128, R=12, top=26, rowH=26, n=ls.hours.length;
+  const H=top+ls.zones.length*rowH+30;
+  const cw=(Wd-L-R)/n, X=hh=>L+(hh-ls.hours[0])*cw;
+  const svg=s("svg",{width:Wd,height:H,viewBox:`0 0 ${Wd} ${H}`,role:"img","aria-label":`Estimated carbon for each zone and start hour, ${sel}`},host);
+  for(let k=0;k<n;k++){ const hh=ls.hours[k]; if(hh%12===0) { s("line",{x1:X(hh),x2:X(hh),y1:top-4,y2:H-26,stroke:"var(--line)"},svg); s("text",{x:X(hh)+2,y:14,class:"tick"},svg,hr(hh)); } }
+  ls.zones.forEach((zid,i)=>{
+    const y=top+i*rowH, z=D.zones.find(z=>z.id===zid);
+    s("text",{x:6,y:y+16,"font-size":11.5,style:"fill:var(--ink)"},svg,zid);
+    s("text",{x:L-8,y:y+16,"text-anchor":"end",class:"tick"},svg,z?z.country:"");
+    ls.grams[i].forEach((v,k)=>{ const hh=ls.hours[k];
+      const c=s("rect",{x:X(hh),y:y+2,width:cw+.3,height:rowH-6,fill:v==null?"url(#hatchL)":heatColor(v,Math.max(1,lo),hi)},svg);
+      c.addEventListener("pointermove",ev=>showTip(ev, v==null?[["Status","too late to finish safely"]]:[["Est. carbon",Math.round(v)+" g"],["vs best",v===lo?"best":"+"+Math.round((v/lo-1)*100)+"%"]],`${zid} · start ${hr(hh)}`));
+      c.addEventListener("pointerleave",hideTip);
+    });
+  });
+  // forecast horizon and deadline
+  const fx=X(Math.min(ls.hours[n-1]+1,ls.forecast_until_h));
+  if(ls.forecast_until_h<ls.hours[n-1]){ s("line",{x1:fx,x2:fx,y1:top-2,y2:H-24,stroke:"var(--ink-2)","stroke-dasharray":"3 3"},svg); s("text",{x:fx+3,y:H-12,"font-size":10.5},svg,"forecast ends · beyond: assumed average"); }
+  // markers: plan at release, and where this policy really started
+  const dec=(run().decisions||[]).filter(d=>d.workload===sel);
+  const first=dec[0];
+  if(first){ const i=ls.zones.indexOf(first.zone); if(i>=0){ const cx=X(Math.round(first.planned_start))+cw/2, cy=top+i*rowH+rowH/2-1;
+    s("circle",{cx,cy,r:7,fill:"none",stroke:"var(--ink)","stroke-width":2},svg); } }
+  if(wr.first_start!=null){ const seg=run().segments.find(s=>s.workload===sel); const i=ls.zones.indexOf(seg.zone);
+    if(i>=0){ const cx=X(Math.floor(wr.first_start))+cw/2, cy=top+i*rowH+rowH/2-1; s("circle",{cx,cy,r:4.5,fill:"var(--ink)",stroke:"var(--surface)","stroke-width":2},svg); } }
+  h("span",{class:"num"},lg,Math.round(lo)+" g");
+  h("span",{style:`width:90px;height:10px;border-radius:2px;display:inline-block;background:linear-gradient(90deg,${heatColor(lo,lo,hi)},${heatColor(Math.sqrt(lo*hi),lo,hi)},${heatColor(hi,lo,hi)})`},lg);
+  h("span",{class:"num"},lg,Math.round(hi)+" g");
+  const a=h("span",{},lg); if(!first) a.hidden=true; const sv=s("svg",{width:14,height:14},a); s("circle",{cx:7,cy:7,r:5.5,fill:"none",stroke:"var(--ink)","stroke-width":2},sv); a.appendChild(document.createTextNode("plan at release"));
+  const b2=h("span",{},lg); const sv2=s("svg",{width:12,height:12},b2); s("circle",{cx:6,cy:6,r:4.5,fill:"var(--ink)"},sv2); b2.appendChild(document.createTextNode(run().policy==="baseline"?"where the baseline started":"where it really started"));
+}
+
 /* ---------- glue ---------- */
-function renderSelectionDependent(){ renderGantt(); renderHeat(); renderDetail(); renderDumb(); renderRes(); renderLog();
+function renderSelectionDependent(){ renderGantt(); renderHeat(); renderDetail(); renderLand(); renderDumb(); renderRes(); renderLog();
   if(sel){ const z=run().workloads[sel].zones_used[0]; if(z){ $("fcZone").value=z; renderFc(); } } }
 function renderAll(){
-  renderHeader(); renderKPIs(); renderGantt(); renderHeat(); renderDetail(); renderFc(); renderCum(); renderDumb(); renderQuota(); renderRes(); renderLog();
+  renderHeader(); renderKPIs(); renderGantt(); renderLadder(); renderHeat(); renderDetail(); renderLand(); renderFc(); renderCum(); renderDumb(); renderQuota(); renderRes(); renderLog();
   $("foot").textContent = `Source: ${D.source}. Score uses a stand-in formula until the organizers' frozen scoring policy is plugged in; carbon, timing and placements come from the run itself. `
     + `Schema v${D.schema}. Load another run with "Load run JSON" (python -m greenops.export --seed N).`;
 }

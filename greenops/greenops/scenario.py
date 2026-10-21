@@ -1,8 +1,8 @@
-"""Synthetic practice scenarios that mimic the challenge description.
+"""Practice scenarios shaped like the real challenge.
 
-None of this is the organizers' data. It exists so policies can be tuned before
-Friday: 15 workloads, 120 h, 11 zones in 8 countries, 20 VMs / 320 vCPUs, GPU caps,
-noisy electricity forecasts. Use different seeds; never tune to one seed.
+Structure comes from catalog.py (the real 15 workloads, 11 zones in 8 countries, GPU families,
+quotas). Durations, release times, deadlines and electricity are random per seed, so policies
+are tuned to the shape of the problem, never to one scenario. Use many seeds.
 """
 from __future__ import annotations
 
@@ -11,47 +11,39 @@ import random
 import zlib
 from dataclasses import dataclass
 
-from .guard import DACH, EU_EEA, resolve_countries
 from .model import Profile, Quotas, Workload, Zone
 
-HORIZON_H = 120.0
+from . import catalog as C
 
-ZONES = [
-    Zone("ch-gva-2", "CH", 1.15), Zone("ch-dk-2", "CH", 1.2),
-    Zone("de-fra-1", "DE", 1.25), Zone("de-muc-1", "DE", 1.2),
-    Zone("at-vie-1", "AT", 1.2), Zone("at-vie-2", "AT", 1.15),
-    Zone("bg-sof-1", "BG", 1.3), Zone("fr-par-x", "FR", 1.2),
-    Zone("se-sto-x", "SE", 1.1), Zone("pl-waw-x", "PL", 1.3), Zone("it-mil-x", "IT", 1.25),
+HORIZON_H = C.HORIZON_H
+
+ZONES = [Zone(zid, cc, {"CH": 1.15, "AT": 1.15}.get(cc, 1.25)) for zid, cc, *_ in C.ZONES]
+ALL_COUNTRIES = frozenset(C.COUNTRIES)
+
+# zone id -> (lat, lon, city, real_zone) for the map views
+ZONE_SITES = {zid: (lat, lon, city, real) for zid, cc, city, lat, lon, _conf, real in C.ZONES}
+
+BASE_INTENSITY = C.BASE_INTENSITY
+SOLAR = C.SOLAR_SHARE
+
+ZONE_IDS = frozenset(z.id for z in ZONES)
+_CPU = [  # ASSUMED coefficients (fictional in the game too)
+    Profile("standard.medium", 2, 4, 0.04, 0.015, 1.0),
+    Profile("standard.large", 4, 8, 0.07, 0.02, 2.0),
+    Profile("cpu.extra-large", 8, 16, 0.12, 0.03, 4.0),
+    Profile("cpu.huge", 16, 32, 0.22, 0.05, 7.6),
+    Profile("memory.huge", 16, 128, 0.26, 0.06, 7.2),
 ]
-ALL_COUNTRIES = frozenset(z.country for z in ZONES)
-
-# Where each zone sits on the map (city centre, approximate). Real Exoscale zones are named after
-# their cities; the "-x" zones are fictional game additions, placed in a plausible city.
-ZONE_SITES = {
-    "ch-gva-2": (46.20, 6.14, "Geneva", True), "ch-dk-2": (47.37, 8.54, "Zurich", True),
-    "de-fra-1": (50.11, 8.68, "Frankfurt", True), "de-muc-1": (48.14, 11.58, "Munich", True),
-    "at-vie-1": (48.24, 16.33, "Vienna", True), "at-vie-2": (48.16, 16.45, "Vienna", True),
-    "bg-sof-1": (42.70, 23.32, "Sofia", True), "fr-par-x": (48.86, 2.35, "Paris", False),
-    "se-sto-x": (59.33, 18.07, "Stockholm", False), "pl-waw-x": (52.23, 21.01, "Warsaw", False),
-    "it-mil-x": (45.46, 9.19, "Milan", False),
+_GPU_SPEC = {  # family -> (vCPUs, RAM GB, kW, idle kW, throughput)   ASSUMED
+    "GPU2": (12, 56, 0.40, 0.09, 1.0), "GPU3": (12, 96, 0.55, 0.12, 1.6), "RTX3080Ti": (8, 32, 0.42, 0.08, 1.1),
+    "A30": (12, 64, 0.30, 0.07, 1.3), "A5000": (12, 64, 0.35, 0.08, 1.2), "RTX6000Pro": (16, 128, 0.70, 0.13, 2.8),
 }
-
-# rough mean grid intensity, gCO2/kWh (illustrative), and solar share for the daily dip
-BASE_INTENSITY = {"CH": 45, "SE": 30, "FR": 60, "AT": 140, "DE": 380, "IT": 300, "BG": 420, "PL": 680}
-SOLAR = {"CH": .15, "SE": .05, "FR": .1, "AT": .25, "DE": .35, "IT": .4, "BG": .3, "PL": .2}
-
-PROFILES = [
-    Profile("std.medium", 2, 4, 0.04, 0.015, 1.0),
-    Profile("std.large", 4, 8, 0.07, 0.02, 2.0),
-    Profile("cpu.xlarge", 8, 16, 0.12, 0.03, 4.0),
-    Profile("cpu.2xlarge", 16, 32, 0.22, 0.05, 7.6),
-    Profile("mem.2xlarge", 16, 128, 0.26, 0.06, 7.2),
-    Profile("gpu.a5000", 12, 64, 0.45, 0.10, 0, 1.0, "A5000", 1, 24),
-    Profile("gpu.a40", 12, 96, 0.55, 0.12, 0, 1.6, "A40", 1, 48),
-    Profile("gpu.rtxpro6000", 16, 128, 0.75, 0.14, 0, 2.6, "RTXPRO6000", 1, 96),
-    Profile("gpu.a40x2", 24, 192, 1.05, 0.22, 0, 3.0, "A40", 2, 48),
-]
-QUOTAS = Quotas(20, 320, {"RTXPRO6000": 4, "A5000": 8, "A40": 8})
+_GPU = []
+for fam, (vc, mem, kw, idle, thr) in _GPU_SPEC.items():
+    zones = frozenset(z for z, fams in C.GPU_ZONES.items() if fam in fams)
+    _GPU.append(Profile(f"gpu.{fam.lower()}", vc, mem, kw, idle, 0, thr, fam, 1, C.GPU_MEM_GB[fam], zones))
+PROFILES = _CPU + _GPU
+QUOTAS = Quotas(C.MAX_VMS, C.MAX_VCPUS, dict(C.GPU_CAPS))
 
 
 @dataclass
@@ -97,40 +89,29 @@ def make_carbon(seed: int) -> Carbon:
 
 
 def make_workloads(seed: int) -> list:
+    """The 15 real workloads (IDs, kinds, allowed countries are known); sizes and times are random per seed."""
     rnd = random.Random(seed * 7 + 1)
     W = []
-
-    def add(i, kind, rel, dl, work, setup, out, countries, ckpt, workers=1, mem=0, gmem=0, fams=()):
-        ref = work * (0.6 if kind == "gpu" else 0.05)
-        W.append(Workload(f"wl-{i:02d}", kind, rel, dl, work, setup, out, frozenset(countries), ckpt,
-                          workers, 0.85, mem, gmem, frozenset(fams), ref))
-
-    # the four examples named in the challenge text
-    add(1, "cpu", 0, 72, 160, 1.0, 0.5, DACH, None, 1, 8)                         # restart-sensitive model, DACH
-    add(2, "cpu", rnd.uniform(10, 30), 100, 40, 0.3, 0.3, {"CH"}, 2.0)              # Swiss-only reporting
-    add(3, "cpu", rnd.uniform(0, 20), 110, 600, 2.0, 1.0,                           # large-input analytics
-        resolve_countries(eu_residency=True, all_countries=ALL_COUNTRIES), 3.0, 6, 16)
-    add(4, "gpu", rnd.uniform(5, 25), 96, 60, 1.0, 0.5, {"DE", "AT", "CH"}, 1.0, 2, 48, 40)  # fine-tuning
-    # the rest: a mix
-    for i in range(5, 16):
-        kind = "gpu" if rnd.random() < 0.35 else "cpu"
-        rel = rnd.uniform(0, 70)
-        dur = rnd.uniform(12, 50)
-        dl = min(HORIZON_H, rel + dur + rnd.uniform(8, 40))
-        work = (rnd.uniform(8, 40) if kind == "gpu" else rnd.uniform(30, 300))
-        res = rnd.random()
-        if res < 0.25:
-            countries = resolve_countries(eu_residency=True, all_countries=ALL_COUNTRIES)
-        elif res < 0.4:
-            countries = DACH
-        elif res < 0.5:
-            countries = {"CH"}
+    for wid, _name, kind, countries in C.WORKLOADS:
+        tr = C.TRAITS.get(wid, {})
+        if tr.get("late"):
+            rel = rnd.uniform(55, 80)
+        elif wid in ("w-01-dach-research", "w-11-dach-simulation"):
+            rel = rnd.uniform(0, 12)
         else:
-            countries = ALL_COUNTRIES
-        ckpt = None if rnd.random() < 0.25 else rnd.choice([0.5, 1.0, 2.0])
-        add(i, kind, rel, dl, work, rnd.choice([0.2, 0.5, 1.0, 1.5]), rnd.choice([0.2, 0.5]),
-            countries, ckpt, rnd.choice([1, 1, 2, 4]), rnd.choice([0, 4, 8, 16]),
-            rnd.choice([0, 16, 24]) if kind == "gpu" else 0)
+            rel = rnd.uniform(0, 60)
+        compute_h = rnd.uniform(8, 30) if kind == "gpu" else rnd.uniform(10, 40)
+        slack = rnd.uniform(10, 45)
+        out_h = rnd.uniform(1.5, 3.0) if tr.get("heavy_output") else rnd.choice([0.2, 0.5])
+        setup = 2.0 if tr.get("long_setup") else rnd.choice([0.3, 0.5, 1.0])
+        dl = min(HORIZON_H, rel + setup + compute_h + out_h + slack)
+        thr = 1.6 if kind == "gpu" else 7.6              # work sized against a mid-range profile
+        work = compute_h * thr
+        ckpt = None if tr.get("restart_sensitive") else tr.get("checkpoint", rnd.choice([0.5, 1.0, 2.0]))
+        ref = work * (0.6 if kind == "gpu" else 0.05)
+        W.append(Workload(wid, kind, rel, dl, work, setup, out_h, frozenset(countries), ckpt,
+                          tr.get("workers", 1), 0.85, rnd.choice([0, 4, 8]), tr.get("gpu_mem", 0),
+                          frozenset(), ref))
     return W
 
 

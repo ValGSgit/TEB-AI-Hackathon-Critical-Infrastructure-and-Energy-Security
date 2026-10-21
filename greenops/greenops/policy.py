@@ -82,9 +82,11 @@ def _active_workloads(state: RunState) -> set:
     return {v.workload_id for v in state.vms}
 
 
-def cleanup(state: RunState) -> list:
+def cleanup(state: RunState, keep_idle: bool = False) -> list:
     """Delete VMs whose job is finished: idle VMs keep drawing power until deleted."""
     acts = []
+    if keep_idle:
+        return acts
     for v in state.vms:
         ws = state.workloads[v.workload_id]
         if v.phase == "done" or ws.delivered or ws.failed:
@@ -127,7 +129,13 @@ class CarbonAware:
     """
     name = "carbon-aware"
 
-    def __init__(self, safety=1.2, buffer_h=2.0, forecast_h=48, min_gain=0.03, run_hopeless=False):
+    def __init__(self, safety=1.2, buffer_h=2.0, forecast_h=48, min_gain=0.03, run_hopeless=False,
+                 allow_wait=True, keep_idle=False, name=None):
+        # allow_wait=False: pick the cleanest legal option for starting *now* (no waiting)
+        # keep_idle=True: ablation, leaves finished VMs running to measure what cleanup is worth
+        self.allow_wait, self.keep_idle = allow_wait, keep_idle
+        if name:
+            self.name = name
         # run_hopeless: set True if Friday's scoring gives credit for partial work on late jobs
         self.safety, self.buffer_h, self.forecast_h, self.min_gain = safety, buffer_h, forecast_h, min_gain
         self.run_hopeless = run_hopeless
@@ -159,7 +167,8 @@ class CarbonAware:
                 continue
             curve, tail = curves[o.zone_id]
             t = now
-            while t <= latest + 1e-9:
+            last = latest if self.allow_wait else min(latest, now)
+            while t <= last + 1e-9:
                 g = self._window_carbon(curve, tail, now, t + ctx.boot_h, o.duration_h - ctx.boot_h, o.draw_kw)
                 if best is None or g < best[0] - 1e-6:
                     best = (g, t, o, latest - now)
@@ -177,7 +186,7 @@ class CarbonAware:
             "carbon_now_g": round(g_now, 1), "slack_h": round(slack, 1)})
 
     def decide(self, ctx: Context, state: RunState) -> list:
-        acts = cleanup(state)
+        acts = cleanup(state, self.keep_idle)
         use = Usage(ctx, state)
         active = _active_workloads(state)
         curves = {z.id: self._curve(ctx, z.id, state.now_h) for z in ctx.zones}

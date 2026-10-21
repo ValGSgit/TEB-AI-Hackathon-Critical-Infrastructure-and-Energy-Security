@@ -17,6 +17,8 @@ with open(os.path.join(HERE, "template.html"), encoding="utf-8") as f:
 with open(src, encoding="utf-8") as f:
     data = f.read().replace("</", "<\\/")      # keep the JSON from closing the script tag
 page = page.replace("/*__DATA__*/", data)
+exp = os.path.join(HERE, "data", "experiments.json")
+page = page.replace("/*__EXP__*/", open(exp, encoding="utf-8").read().replace("</", "<\\/") if os.path.exists(exp) else "")
 page = page.replace("__NAV__", "" if bare else '<a class="filebtn" href="../globe/earth.html">Earth view</a>')
 if not bare:
     page = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'

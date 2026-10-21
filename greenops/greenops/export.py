@@ -12,7 +12,10 @@ import argparse
 import json
 import os
 
-from .policy import Baseline, CarbonAware, Context, apply
+import math
+
+from . import catalog as C
+from .policy import Baseline, CarbonAware, Context, apply, options_for
 from .scenario import ZONE_SITES, make_scenario
 from .sim import Sim
 
@@ -66,6 +69,33 @@ def zone_record(z):
     return rec
 
 
+def landscape(sc, w, horizon_fc=48):
+    """Options the planner could see when the job was released: estimated carbon (forecast issued at
+    release) for each allowed zone and each whole start hour, using the best VM type/worker count
+    for that zone and hour. None = starting then would no longer be safe before the deadline."""
+    pol = CarbonAware()
+    ctx = Context(sc.zones, sc.profiles, sc.workloads, sc.quotas, sc.boot_h, forecast=sc.carbon.forecast)
+    now = w.release_h
+    curves = {z.id: pol._curve(ctx, z.id, now) for z in sc.zones}
+    opts = options_for(ctx, w.id, w.work_units)
+    zones = sorted({o.zone_id for o in opts})
+    hours = list(range(math.ceil(now), int(w.deadline_h) + 1))
+    grid = []
+    for zid in zones:
+        zo = [o for o in opts if o.zone_id == zid]
+        row = []
+        for h in hours:
+            best = None
+            for o in zo:
+                if h > w.deadline_h - o.duration_h * pol.safety - pol.buffer_h:
+                    continue
+                g = pol._window_carbon(*curves[zid], now, h + ctx.boot_h, o.duration_h - ctx.boot_h, o.draw_kw)
+                best = g if best is None else min(best, g)
+            row.append(round(best, 1) if best is not None else None)
+        grid.append(row)
+    return {"issued_h": round(now, 2), "forecast_until_h": round(now + horizon_fc, 2), "zones": zones, "hours": hours, "grams": grid}
+
+
 def build(seed: int, start_utc: str = START_UTC) -> dict:
     sc = make_scenario(seed)
     H = int(sc.horizon_h)
@@ -80,13 +110,16 @@ def build(seed: int, start_utc: str = START_UTC) -> dict:
                       "gpu_family": p.gpu_family, "gpus": p.gpus} for p in sc.profiles],
         "quotas": {"max_vms": sc.quotas.max_vms, "max_vcpus": sc.quotas.max_vcpus, "gpu_caps": sc.quotas.gpu_caps},
         "workloads": [{
-            "id": w.id, "kind": w.kind, "release_h": round(w.release_h, 2), "deadline_h": round(w.deadline_h, 2),
+            "id": w.id, "name": C.WORKLOAD_NAMES.get(w.id, w.id), "kind": w.kind, "release_h": round(w.release_h, 2), "deadline_h": round(w.deadline_h, 2),
             "work_units": round(w.work_units, 1), "setup_h": w.setup_h, "output_h": w.output_h,
             "allowed_countries": sorted(w.allowed_countries), "checkpoint_h": w.checkpoint_h,
             "max_workers": w.max_workers, "ref_energy_kwh": round(w.ref_energy_kwh, 2)} for w in sc.workloads],
         "carbon_actual": {z.id: [round(sc.carbon.at(z.id, h), 1) for h in range(H)] for z in sc.zones},
         "forecasts": {z.id: {str(t): [round(v, 1) for v in sc.carbon.forecast(z.id, t, FORECAST_LEN_H)]
                              for t in range(0, H, FORECAST_EVERY_H)} for z in sc.zones},
+        "phase_names": C.PLATFORM_PHASES,
+        "gpu_labels": C.GPU_LABELS,
+        "landscapes": {w.id: landscape(sc, w) for w in sc.workloads},
         "runs": [run_traced(sc, CarbonAware()), run_traced(sc, Baseline())],
     }
 

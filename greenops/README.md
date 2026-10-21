@@ -4,10 +4,22 @@ Carbon-aware orchestrator for the TEB Critical Infrastructure Hackathon, 23–25
 Built before the event against **synthetic practice scenarios**; the organizers' data,
 API details and scoring formula are plugged in on Friday.
 
+## What we know vs what we assume
+
+`greenops/catalog.py` holds everything read off the organizers' challenge guide and platform preview:
+the 15 workload IDs, names, CPU/GPU and allowed countries; 11 zones in 8 countries (AT, BG, CH, DE, ES, FR, HR, IT)
+with their cities; GPU families and caps (GPU2, GPU3, RTX 3080 Ti, A30, A5000 at 8 cards, RTX 6000 Pro at 4);
+20 VMs / 320 vCPUs; the platform's phase names. Numbers we could not see (durations, deadlines, zone IDs other than
+`at-vie-1`, GPU memory, which zone has which GPU, power and throughput) are marked ASSUMED and get replaced from the
+starter kit on Friday. Practice scenarios randomize only the assumed numbers, so we tune to the shape of the problem,
+never to one scenario.
+
 ## What is here
 
 | File | What it does |
 | --- | --- |
+| `greenops/catalog.py` | Known facts from the challenge guide and preview, and clearly marked assumptions |
+| `greenops/experiments.py` | Experiment ladder: baseline, + cleanest zone, + forecast waiting, and an idle-VM ablation, on the same seeds |
 | `greenops/model.py` | Zones, VM profiles, workloads, quotas, run state |
 | `greenops/guard.py` | Residency guard. A placement in a forbidden country disqualifies the run, so every create goes through it twice |
 | `greenops/policy.py` | `Baseline` (fixed legal zone, start at release) and `CarbonAware` (forecast-driven planner, re-planned every tick) |
@@ -24,16 +36,20 @@ API details and scoring formula are plugged in on Friday.
 pip install -r requirements.txt
 python -m pytest -q          # 19 tests
 python compare.py 20         # policy comparison on 20 practice scenarios
+python -m greenops.experiments --seeds 12   # experiment ladder, one change at a time
 ```
 
-Result on 20 practice scenarios (stand-in scoring):
+Experiment ladder on 12 practice scenarios shaped like the real challenge (stand-in score):
 
-| Policy | Avg score | Avg carbon | Jobs delivered | All-done bonus |
+| Step | Avg carbon | vs baseline | Energy | All on time |
 | --- | --- | --- | --- | --- |
-| Baseline | 20,223 | 15.9 kg | 14.9 / 15 | 19 / 20 |
-| Carbon-aware | 23,227 | 4.3 kg | 14.9 / 15 | 19 / 20 |
+| Baseline (fixed legal zone, start at release) | 20.0 kg | – | 122.7 kWh | 12/12 |
+| + cleanest zone now | 13.2 kg | −34% | 123.7 kWh | 12/12 |
+| + wait for cleaner hours | 12.9 kg | −36% | 123.3 kWh | 12/12 |
+| Ablation: keep idle VMs | 22.2 kg | +11% | 201.4 kWh | 12/12 |
 
-The one miss is a job that no option could finish before its deadline.
+Takeaway so far: *where* matters most, *when* adds a little, and deleting idle VMs is worth more than waiting.
+Re-run on the real scenario once the platform is open; these are synthetic numbers.
 
 ## How the carbon-aware policy decides
 
