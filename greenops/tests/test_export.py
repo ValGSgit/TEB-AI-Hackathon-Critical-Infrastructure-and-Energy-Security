@@ -7,6 +7,8 @@ def test_export_shape():
     assert d["schema"] == 1
     assert {r["policy"] for r in d["runs"]} == {"carbon-aware", "baseline"}
     zones = {z["id"]: z["country"] for z in d["zones"]}
+    assert all(-90 <= z["lat"] <= 90 and -180 <= z["lon"] <= 180 for z in d["zones"])   # the globe needs these
+    assert d["start_utc"].endswith("Z")
     assert set(d["carbon_actual"]) == set(zones)
     allowed = {w["id"]: set(w["allowed_countries"]) for w in d["workloads"]}
     for r in d["runs"]:

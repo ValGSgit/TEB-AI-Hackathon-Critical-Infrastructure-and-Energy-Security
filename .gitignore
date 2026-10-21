@@ -8,3 +8,4 @@ sky2.json
 *.zip
 *.bundle
 greenops/ui/dashboard-bare.html
+greenops/globe/earth-bare.html

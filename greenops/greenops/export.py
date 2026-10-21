@@ -13,7 +13,7 @@ import json
 import os
 
 from .policy import Baseline, CarbonAware, Context, apply
-from .scenario import make_scenario
+from .scenario import ZONE_SITES, make_scenario
 from .sim import Sim
 
 FORECAST_EVERY_H = 6
@@ -55,7 +55,18 @@ def run_traced(sc, policy, dt=0.25):
     }
 
 
-def build(seed: int) -> dict:
+START_UTC = "2026-10-23T18:00:00Z"   # simulated hour 0 = hacking starts, Fri 20:00 Vienna
+
+
+def zone_record(z):
+    rec = {"id": z.id, "country": z.country, "pue": z.pue}
+    if z.id in ZONE_SITES:
+        lat, lon, city, real = ZONE_SITES[z.id]
+        rec.update(lat=lat, lon=lon, city=city, real_zone=real)
+    return rec
+
+
+def build(seed: int, start_utc: str = START_UTC) -> dict:
     sc = make_scenario(seed)
     H = int(sc.horizon_h)
     return {
@@ -63,7 +74,8 @@ def build(seed: int) -> dict:
         "source": "local simulator (synthetic practice scenario)",
         "seed": seed,
         "horizon_h": sc.horizon_h,
-        "zones": [{"id": z.id, "country": z.country, "pue": z.pue} for z in sc.zones],
+        "start_utc": start_utc,
+        "zones": [zone_record(z) for z in sc.zones],
         "profiles": [{"id": p.id, "vcpus": p.vcpus, "mem_gb": p.mem_gb, "power_kw": p.power_kw,
                       "gpu_family": p.gpu_family, "gpus": p.gpus} for p in sc.profiles],
         "quotas": {"max_vms": sc.quotas.max_vms, "max_vcpus": sc.quotas.max_vcpus, "gpu_caps": sc.quotas.gpu_caps},
@@ -82,9 +94,10 @@ def build(seed: int) -> dict:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=3)
+    ap.add_argument("--start", default=START_UTC, help="real UTC time of simulated hour 0 (for satellite positions)")
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "ui", "data", "run.json"))
     a = ap.parse_args()
-    data = build(a.seed)
+    data = build(a.seed, a.start)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(data, f, separators=(",", ":"))

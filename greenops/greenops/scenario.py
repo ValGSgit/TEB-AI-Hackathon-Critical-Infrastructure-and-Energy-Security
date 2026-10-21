@@ -25,6 +25,17 @@ ZONES = [
 ]
 ALL_COUNTRIES = frozenset(z.country for z in ZONES)
 
+# Where each zone sits on the map (city centre, approximate). Real Exoscale zones are named after
+# their cities; the "-x" zones are fictional game additions, placed in a plausible city.
+ZONE_SITES = {
+    "ch-gva-2": (46.20, 6.14, "Geneva", True), "ch-dk-2": (47.37, 8.54, "Zurich", True),
+    "de-fra-1": (50.11, 8.68, "Frankfurt", True), "de-muc-1": (48.14, 11.58, "Munich", True),
+    "at-vie-1": (48.24, 16.33, "Vienna", True), "at-vie-2": (48.16, 16.45, "Vienna", True),
+    "bg-sof-1": (42.70, 23.32, "Sofia", True), "fr-par-x": (48.86, 2.35, "Paris", False),
+    "se-sto-x": (59.33, 18.07, "Stockholm", False), "pl-waw-x": (52.23, 21.01, "Warsaw", False),
+    "it-mil-x": (45.46, 9.19, "Milan", False),
+}
+
 # rough mean grid intensity, gCO2/kWh (illustrative), and solar share for the daily dip
 BASE_INTENSITY = {"CH": 45, "SE": 30, "FR": 60, "AT": 140, "DE": 380, "IT": 300, "BG": 420, "PL": 680}
 SOLAR = {"CH": .15, "SE": .05, "FR": .1, "AT": .25, "DE": .35, "IT": .4, "BG": .3, "PL": .2}
