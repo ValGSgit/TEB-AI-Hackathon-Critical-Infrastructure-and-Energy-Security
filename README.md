@@ -10,6 +10,7 @@ Team repo. Everything we build, before and during the event, goes here.
 | --- | --- | --- |
 | [`greenops/`](greenops/) | Carbon-aware scheduler for the **Exoscale GreenOps Challenge** (our primary challenge) | Pre-built core, simulator and tests; Friday: plug in the real data, API and score |
 | [`greenops/ui/`](greenops/ui/) | GreenOps Control Room: one-page view of a run (timeline, carbon map, forecasts, policy comparison, quotas, residency, decision log) | Built from simulator runs; Friday: feed it real run data |
+| [`greenops/globe/`](greenops/globe/) | GreenOps Earth: 3D replay of a run on the real map, with zones by carbon intensity, workload arcs and the real Galileo and Sentinel-2 satellites | Built from simulator runs |
 | [`forcegeo/showcase/`](forcegeo/showcase/) | ForceGeo: location-trust checks for pipeline commands, on the real TAG/SOL gas corridor | Interactive demo page (backup for an open security track) |
 | [`forcegeo/galileo-live/`](forcegeo/galileo-live/) | Live Galileo and Sentinel-2 positions from real orbit data | Demo page, built from `template.html` |
 | [`forcegeo/galileo-design/`](forcegeo/galileo-design/) | Two screens: authentic Galileo sky vs a replay spoofing attack at the Murfeld sensor | Design files and the script that computes the real sky |
@@ -31,6 +32,7 @@ GreenOps Control Room:
 ```bash
 cd greenops
 python -m greenops.export --seed 3 && python ui/build.py   # then open ui/dashboard.html
+python globe/build.py                                      # then open globe/earth.html (3D view)
 ```
 
 ForceGeo pages: open `forcegeo/showcase/index.html` or `forcegeo/galileo-live/galileo-live.html` in a browser.

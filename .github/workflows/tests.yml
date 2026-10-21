@@ -35,4 +35,4 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
-      - run: python -m greenops.export --seed 3 && python ui/build.py
+      - run: python -m greenops.export --seed 3 && python ui/build.py && python globe/build.py
