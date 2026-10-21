@@ -1,0 +1,527 @@
+<title>Galileo Live</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: ISA-101 style operator console. Map is the hero; live sky panel beside it; colour only marks satellites the site can actually see. */
+:root{
+  --bg:#e7e9ec; --panel:#f4f5f7; --line:#c9cdd3; --fg:#1d2329; --muted:#5b6570;
+  --accent:#2f5d8a; --accent-soft:#d6e1ec; --ok:#2e7d4f;
+  --land:#d3d7dc; --border:#f4f5f7; --sea:#eef0f2; --grat:#dfe2e6; --sat:#8a939d;
+  --s2:#7a3f8f; --s2-soft:#ecdff1; --imgline:rgba(255,255,255,.55);
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#1c2025; --panel:#252a30; --line:#3a414a; --fg:#e3e6ea; --muted:#9aa3ad;
+  --accent:#7fa8d1; --accent-soft:#2b3a4a; --ok:#5fbf86;
+  --land:#3a4048; --border:#252a30; --sea:#20252b; --grat:#2c3239; --sat:#7c858f;
+  --s2:#c595d8; --s2-soft:#3a2a42; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1c2025; --panel:#252a30; --line:#3a414a; --fg:#e3e6ea; --muted:#9aa3ad;
+  --accent:#7fa8d1; --accent-soft:#2b3a4a; --ok:#5fbf86;
+  --land:#3a4048; --border:#252a30; --sea:#20252b; --grat:#2c3239; --sat:#7c858f;
+  --s2:#c595d8; --s2-soft:#3a2a42; color-scheme:dark}
+*{box-sizing:border-box}
+#map.img .land{fill:none;stroke:var(--imgline);stroke-width:.6px}
+#map.img .grat{stroke:rgba(255,255,255,.18)}
+#map.img .sitelbl{fill:#fff}
+.passes{display:grid;gap:0}
+.pass{display:grid;grid-template-columns:auto 1fr auto;gap:2px 10px;padding:8px 0;border-bottom:1px solid var(--line);align-items:baseline;font-size:.85rem}
+.pass:last-child{border-bottom:0}
+.pass .who{font-family:var(--f-mono);font-weight:600;color:var(--s2)}
+.pass .when{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.pass .off{color:var(--muted);font-size:.78rem;text-align:right}
+.pass .sub{grid-column:2/-1;color:var(--muted);font-size:.78rem}
+.region{position:relative;border-radius:2px;overflow:hidden;background:var(--sea)}
+.region img{display:block;width:100%;height:auto}
+.region svg{position:absolute;inset:0;width:100%;height:100%}
+.empty{display:grid;place-items:center;text-align:center;padding:28px 16px;border:1px dashed var(--line);border-radius:3px;color:var(--muted);font-size:.85rem}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 40px}
+.wrap{max-width:1400px;margin:0 auto;display:grid;gap:16px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(2rem,4vw,2.8rem);line-height:1;margin:0}
+h2{font-family:var(--f-display);font-weight:600;font-size:1.35rem;margin:0}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+header .l{display:grid;gap:6px;min-width:0}
+.clock{display:grid;gap:4px;justify-items:end}
+.clock .t{font-family:var(--f-mono);font-size:1.25rem;font-weight:500;font-variant-numeric:tabular-nums}
+.pill{font:600 .72rem var(--f-mono);letter-spacing:.1em;padding:3px 8px;border-radius:3px}
+.pill.live{background:var(--accent-soft);color:var(--accent)}
+.pill.sim{background:var(--line);color:var(--fg)}
+.controls{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 14px}
+.controls label{font-size:.85rem;color:var(--muted);display:flex;gap:8px;align-items:center}
+select,button{font:500 .85rem var(--f-body);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:3px;padding:6px 10px;cursor:pointer;min-height:34px}
+button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent)}
+button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:980px){.main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:14px;display:grid;gap:10px;min-width:0}
+.mapbox{overflow-x:auto}
+#map{display:block;width:100%;min-width:560px;height:auto;background:var(--sea);border-radius:2px}
+#map .land{fill:var(--land);stroke:var(--border);stroke-width:.7px}
+#map .grat{stroke:var(--grat);stroke-width:1.2;fill:none}
+#map text{font-family:var(--f-mono);fill:var(--fg)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.8rem;color:var(--muted)}
+.legend span{display:flex;gap:6px;align-items:center}
+.sw{display:inline-block;width:10px;height:10px;border-radius:50%}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{display:grid;gap:2px}
+.stat b{font-family:var(--f-display);font-size:1.9rem;line-height:1;font-variant-numeric:tabular-nums}
+#sky text{font-family:var(--f-mono);fill:var(--fg)}
+table{border-collapse:collapse;width:100%;font-size:.82rem;font-variant-numeric:tabular-nums}
+th,td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{font:500 .66rem var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+th:first-child,td:first-child{text-align:left}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--bg)}
+tbody tr.sel td{background:var(--accent-soft)}
+td.id{font-family:var(--f-mono);font-weight:500}
+.tblbox{max-height:330px;overflow:auto}
+.detail{font-size:.85rem;color:var(--muted)}
+.detail b{color:var(--fg);font-weight:600}
+.note{font-size:.78rem;color:var(--muted);line-height:1.6}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="l">
+      <div class="eyebrow">ForceGeo · real Galileo and Sentinel-2 orbits, propagated live in your browser</div>
+      <h1>Galileo Live</h1>
+    </div>
+    <div class="clock">
+      <span class="pill live" id="mode">LIVE</span>
+      <span class="t" id="clock">—</span>
+    </div>
+  </header>
+
+  <div class="controls">
+    <label for="site">Site
+      <select id="site">
+        <option value="0">LS-07 leak sensor · Murfeld, AT/SI border</option>
+        <option value="1">TU Wien · hackathon venue, AT</option>
+        <option value="2">Baumgarten gas hub, AT</option>
+        <option value="3">Weitendorf SOL branch, AT</option>
+        <option value="4">Arnoldstein, AT/IT border</option>
+      </select>
+    </label>
+    <div class="seg" role="group" aria-label="Time speed">
+      <button type="button" data-speed="1" aria-pressed="true">Real time</button>
+      <button type="button" data-speed="60">×60</button>
+      <button type="button" data-speed="600">×600</button>
+      <button type="button" data-speed="3600">×3600</button>
+    </div>
+    <button type="button" id="now">Back to now</button>
+  </div>
+
+  <div class="main">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">
+        <h2>Where each satellite is right now</h2>
+        <span class="eyebrow">point on Earth directly below it</span>
+      </div>
+      <div class="mapbox">
+        <svg id="map" viewBox="0 0 3600 1800" role="img" aria-label="World map with the ground positions of 32 Galileo and 3 Sentinel-2 satellites">
+          <image id="worldimg" x="0" y="0" width="3600" height="1800" preserveAspectRatio="none" href="__S2WORLD__"></image>
+          <g id="grat"></g>
+          <defs><path id="landpath" d="__WORLD__" style="vector-effect:non-scaling-stroke"></path></defs><use href="#landpath" class="land"></use>
+          <g id="foot"></g>
+          <g id="s2swath"></g>
+          <g id="track"></g>
+          <g id="rays"></g>
+          <g id="sats"></g>
+          <g id="s2sats"></g>
+          <g id="siteg"></g>
+        </svg>
+      </div>
+      <div class="legend">
+        <span><svg width="12" height="12" aria-hidden="true"><path d="M6 1L11 11H1Z" fill="var(--s2)"></path></svg>Sentinel-2 imaging satellite, with its next 50 min of track</span>
+        <span><i class="sw" style="background:var(--accent)"></i>Galileo, visible from the site (above 10°)</span>
+        <span><i class="sw" style="background:var(--sat)"></i>Galileo, below the site's horizon or mask</span>
+        <span><i class="sw" style="background:var(--fg);border-radius:0;transform:rotate(45deg);width:9px;height:9px"></i>Selected site</span>
+        <span><svg width="22" height="10" aria-hidden="true"><line x1="0" y1="5" x2="22" y2="5" stroke="var(--accent)" stroke-width="2" stroke-dasharray="4 3"></line></svg>Edge of the site's view at 10° elevation</span>
+        <span><svg width="22" height="10" aria-hidden="true"><line x1="0" y1="5" x2="22" y2="5" stroke="var(--fg)" stroke-width="2"></line></svg>Selected satellite, next 6 h</span>
+      </div>
+      <div class="detail" id="detail">Click a satellite or a row to see its ground track.</div>
+      <div id="imgcredit" class="note" hidden>Background: EOxCloudless 2025 (https://cloudless.eox.at) by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2025), CC BY-NC-SA 4.0.</div>
+    </div>
+
+    <div style="display:grid;gap:16px;min-width:0">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+          <h2>Next Sentinel-2 images of the site</h2>
+        </div>
+        <div class="passes" id="passes"><div class="pass"><span class="sub">Calculating…</span></div></div>
+        <p class="note" style="margin:0">Daytime passes whose 290 km imaging swath covers the site. Cloud cover decides whether the picture is usable.</p>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+          <h2>Sky above the site</h2><span class="eyebrow" id="siteName"></span>
+        </div>
+        <svg id="sky" viewBox="0 0 300 300" style="width:100%;max-width:320px;justify-self:center" role="img" aria-label="Sky plot of visible Galileo satellites">
+          <circle cx="150" cy="150" r="130" fill="var(--sea)" stroke="var(--sat)" stroke-width="1"></circle>
+          <circle cx="150" cy="150" r="115.6" fill="none" stroke="var(--line)" stroke-dasharray="3 4"></circle>
+          <circle cx="150" cy="150" r="86.7" fill="none" stroke="var(--line)"></circle>
+          <circle cx="150" cy="150" r="43.3" fill="none" stroke="var(--line)"></circle>
+          <line x1="150" y1="20" x2="150" y2="280" stroke="var(--line)"></line>
+          <line x1="20" y1="150" x2="280" y2="150" stroke="var(--line)"></line>
+          <text x="150" y="13" text-anchor="middle" font-size="11">N</text>
+          <text x="150" y="296" text-anchor="middle" font-size="11">S</text>
+          <text x="290" y="154" text-anchor="middle" font-size="11">E</text>
+          <text x="10" y="154" text-anchor="middle" font-size="11">W</text>
+          <g id="skysats"></g>
+        </svg>
+        <div class="stats">
+          <div class="stat"><span class="eyebrow">Visible</span><b id="nvis">–</b></div>
+          <div class="stat"><span class="eyebrow">PDOP</span><b id="pdop">–</b></div>
+          <div class="stat"><span class="eyebrow">HDOP</span><b id="hdop">–</b></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Visible satellites</h2>
+        <div class="tblbox"><table>
+          <thead><tr><th>Satellite</th><th>Elev °</th><th>Azim °</th><th>Range km</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">
+      <h2>TAG / SOL corridor from Sentinel-2</h2>
+      <span class="eyebrow" id="regionsrc">borders only · imagery not loaded yet</span>
+    </div>
+    <div class="mapbox">
+      <svg id="region" viewBox="1930 412 65 38" style="display:block;width:100%;min-width:560px;height:auto;background:var(--sea);border-radius:2px" role="img" aria-label="Map of the TAG and SOL gas corridor from Baumgarten to Arnoldstein and Murfeld">
+        <image id="regionimg" x="1930" y="412" width="65" height="38" preserveAspectRatio="none" href="__S2REGION__"></image>
+        <use href="#landpath" id="regionland" style="fill:var(--land);stroke:var(--border);stroke-width:1.5px"></use>
+        <polyline points="1968.78,416.83 1954.88,430.97 1937.08,434.54" fill="none" stroke="#e9a23b" stroke-width="3.5" style="vector-effect:non-scaling-stroke"></polyline>
+        <polyline points="1954.88,430.97 1956.55,432.95 1957.00,437.74" fill="none" stroke="#e9a23b" stroke-width="3" stroke-dasharray="8 6" style="vector-effect:non-scaling-stroke"></polyline>
+        <g id="regionsites"></g>
+        <g id="regions2"></g>
+      </svg>
+    </div>
+    <p class="note" style="margin:0">Solid line: the TAG route, Baumgarten → Weitendorf → Arnoldstein (Italian border). Dashed: the SOL branch, Weitendorf → Murfeld/Ceršak (Slovenian border), and Slovenia's link on to Croatia at Rogatec. Straight lines between real points, not the exact pipe route. Sentinel-2 satellites appear when their track crosses this area.</p>
+  </div>
+
+  <p class="note">Orbits: real Galileo element sets for 32 satellites from CelesTrak (epochs 7–19 Oct 2026), taken from a public mirror refreshed 19 Oct 2026 11:07 UTC, propagated with SGP4 (satellite.js) on this device. Sentinel-2A, 2B and 2C element sets from the same catalogue (epochs 19 Oct 2026); Sentinel-2A runs an extension campaign until the end of 2026. Positions stay accurate to a few kilometres for some days; refresh the element sets before the demo. Satellite health is not checked. Borders: Natural Earth via world-atlas. Site coordinates are approximate; LS-07 is a simulated sensor.</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/satellite.js@5.0.0/dist/satellite.min.js"></script>
+<script>
+const TLE = `__TLE__`;
+const S2TLE = `__S2TLE__`;
+const SITES = [
+  {name:"LS-07 · Murfeld", lat:46.705, lon:15.655, h:0.25},
+  {name:"TU Wien", lat:48.1990, lon:16.3699, h:0.18},
+  {name:"Baumgarten", lat:48.3170, lon:16.8780, h:0.15},
+  {name:"Weitendorf", lat:46.903, lon:15.488, h:0.30},
+  {name:"Arnoldstein", lat:46.546, lon:13.708, h:0.57}
+];
+const MASK = 10, R_E = 6371, D2R = Math.PI/180;
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+const mx = lon => (lon + 180) * 10, my = lat => (90 - lat) * 10;
+
+// parse element sets
+const L = TLE.trim().split("\n").map(s => s.trim());
+const SATS = [];
+for (let i = 0; i + 2 < L.length + 1; i += 3) {
+  if (!L[i+1]) break;
+  const nm = L[i]; const id = nm.split(" ")[0];
+  const nick = (nm.match(/\((.*)\)/) || [,""])[1];
+  SATS.push({ id, nick, rec: satellite.twoline2satrec(L[i+1], L[i+2]) });
+}
+
+const S2L = S2TLE.trim().split("\n").map(s => s.trim());
+const S2 = [];
+for (let i = 0; i + 2 < S2L.length + 1; i += 3) {
+  if (!S2L[i+1]) break;
+  const nm = S2L[i].replace("SENTINEL-", "Sentinel-");
+  S2.push({ id: nm, short: nm.replace("Sentinel-", "S"), rec: satellite.twoline2satrec(S2L[i+1], S2L[i+2]) });
+}
+
+// imagery: shown only when an image was embedded
+const hasWorld = $("worldimg").getAttribute("href").length > 20;
+if (hasWorld) { $("map").classList.add("img"); $("imgcredit").hidden = false; } else $("worldimg").remove();
+const hasRegion = $("regionimg").getAttribute("href").length > 20;
+if (hasRegion) {
+  $("regionland").style.fill = "none"; $("regionland").style.stroke = "rgba(255,255,255,.6)";
+  $("regionsrc").textContent = "EOxCloudless 2025 · contains modified Copernicus Sentinel data";
+} else $("regionimg").remove();
+
+// graticule
+const grat = $("grat");
+for (let lon = -150; lon <= 150; lon += 30) el("line", {x1: mx(lon), y1: 0, x2: mx(lon), y2: 1800, class: "grat"}, grat);
+for (let lat = -60; lat <= 60; lat += 30) el("line", {x1: 0, y1: my(lat), x2: 3600, y2: my(lat), class: "grat"}, grat);
+
+// satellite markers
+const satG = $("sats");
+SATS.forEach(s => {
+  const g = el("g", {style: "cursor:pointer"}, satG);
+  s.ring = el("circle", {r: 30, fill: "none", stroke: "var(--fg)", "stroke-width": 5, visibility: "hidden"}, g);
+  s.dot = el("circle", {r: 17, fill: "var(--sat)", stroke: "var(--sea)", "stroke-width": 5}, g);
+  s.lbl = el("text", {"font-size": 34, "font-weight": 500}, g);
+  s.lbl.textContent = s.id.replace("GSAT", "");
+  g.addEventListener("click", () => select(s.id));
+  s.g = g;
+});
+
+// Sentinel-2 markers
+const s2G = $("s2sats"), rG = $("regions2");
+S2.forEach(s => {
+  const g = el("g", {style: "cursor:pointer"}, s2G);
+  s.ring = el("circle", {r: 34, fill: "none", stroke: "var(--fg)", "stroke-width": 5, visibility: "hidden"}, g);
+  s.tri = el("path", {fill: "var(--s2)", stroke: "var(--sea)", "stroke-width": 5}, g);
+  s.lbl = el("text", {"font-size": 36, "font-weight": 600, fill: "var(--s2)"}, g);
+  s.lbl.textContent = s.short;
+  g.addEventListener("click", () => select(s.id));
+  s.rtri = el("path", {fill: "#c595d8", stroke: "#fff", "stroke-width": .12}, rG);
+  s.rlbl = el("text", {"font-size": 1.1, "font-weight": 600, fill: "#fff", "font-family": "IBM Plex Mono, monospace"}, rG);
+  s.rlbl.textContent = s.short;
+});
+
+// region sites
+(function () {
+  const g = $("regionsites");
+  const pts = [
+    {n: "Baumgarten", lat: 48.317, lon: 16.878, dx: 0.8, dy: -0.5},
+    {n: "TU Wien", lat: 48.199, lon: 16.3699, dx: -0.8, dy: -0.6, end: true},
+    {n: "Weitendorf", lat: 46.903, lon: 15.488, dx: -0.8, dy: -0.2, end: true},
+    {n: "LS-07 Murfeld", lat: 46.705, lon: 15.655, dx: 0.8, dy: 0.3},
+    {n: "Arnoldstein", lat: 46.546, lon: 13.708, dx: 0.8, dy: -0.6},
+    {n: "Rogatec", lat: 46.226, lon: 15.700, dx: 0.8, dy: 0.4}
+  ];
+  pts.forEach(p => {
+    const x = mx(p.lon), y = my(p.lat);
+    el("rect", {x: x - .38, y: y - .38, width: .76, height: .76, fill: "#1d2329", stroke: "#fff", "stroke-width": .14, transform: `rotate(45 ${x} ${y})`}, g);
+    const bg = el("text", {x: x + p.dx, y: y + p.dy + .35, "font-size": 1.15, "font-family": "IBM Plex Sans, sans-serif", "font-weight": 600, fill: "none", stroke: "#1d2329", "stroke-width": .35, "stroke-linejoin": "round", "text-anchor": p.end ? "end" : "start"}, g);
+    bg.textContent = p.n;
+    const t = el("text", {x: x + p.dx, y: y + p.dy + .35, "font-size": 1.15, "font-family": "IBM Plex Sans, sans-serif", "font-weight": 600, fill: "#fff", "text-anchor": p.end ? "end" : "start"}, g);
+    t.textContent = p.n;
+  });
+})();
+
+function s2pos(s, date) {
+  const pv = satellite.propagate(s.rec, date);
+  if (!pv.position) return null;
+  const gd = satellite.eciToGeodetic(pv.position, satellite.gstime(date));
+  return { lat: satellite.degreesLat(gd.latitude), lon: satellite.degreesLong(gd.longitude), alt: gd.height };
+}
+function gc(a, b, c, d) {
+  const p1 = a * D2R, p2 = c * D2R, dl = (d - b) * D2R;
+  return R_E * Math.acos(Math.min(1, Math.sin(p1) * Math.sin(p2) + Math.cos(p1) * Math.cos(p2) * Math.cos(dl)));
+}
+function trianglePath(x, y, r) { return `M${x} ${y - r}L${x + r * 0.9} ${y + r * 0.6}L${x - r * 0.9} ${y + r * 0.6}Z`; }
+
+function drawS2Tracks(now) {
+  const g = $("s2swath"); g.innerHTML = "";
+  S2.forEach(s => {
+    let d = "", px = null;
+    for (let m = 0; m <= 50; m += 0.5) {
+      const p = s2pos(s, new Date(now.getTime() + m * 60000)); if (!p) continue;
+      const X = mx(p.lon), Y = my(p.lat);
+      d += (px === null || Math.abs(X - px) > 1800 ? "M" : "L") + X.toFixed(0) + " " + Y.toFixed(0);
+      px = X;
+    }
+    el("path", {d, fill: "none", stroke: "var(--s2)", "stroke-width": s.id === selected ? 7 : 4, "stroke-dasharray": "14 10", opacity: .9}, g);
+  });
+}
+
+// next daytime passes whose 290 km swath covers the site
+let passCache = { key: "", list: [] };
+function computePasses(now) {
+  const site = SITES[siteIdx], key = siteIdx + ":" + Math.floor(now.getTime() / 600000);
+  if (passCache.key === key) return passCache.list;
+  const list = [];
+  S2.forEach(s => {
+    let best = null, prevLat = null;
+    for (let t = 0; t < 12 * 86400; t += 30) {
+      const date = new Date(now.getTime() + t * 1000);
+      const p = s2pos(s, date); if (!p) continue;
+      const km = gc(site.lat, site.lon, p.lat, p.lon);
+      const desc = prevLat !== null && p.lat < prevLat;
+      prevLat = p.lat;
+      if (km < 145 && desc) { if (!best || km < best.km) best = { s, date, km }; }
+      else if (best && km >= 145) { list.push(best); best = null; }
+    }
+  });
+  list.sort((a, b) => a.date - b.date);
+  passCache = { key, list: list.slice(0, 5) };
+  return passCache.list;
+}
+function renderPasses(now) {
+  const list = computePasses(now);
+  const fmt = d => d.toISOString().slice(0, 16).replace("T", " ") + " UTC";
+  const rel = d => { const h = (d - now) / 3600000; return h < 48 ? `in ${Math.round(h)} h` : `in ${(h / 24).toFixed(1)} days`; };
+  $("passes").innerHTML = list.length ? list.map(p =>
+    `<div class="pass"><span class="who">${p.s.short}</span><span class="when">${fmt(p.date)}</span><span class="off">${rel(p.date)}</span><span class="sub">ground track ${Math.round(p.km)} km from the site · ${p.s.id}</span></div>`
+  ).join("") : `<div class="pass"><span class="sub">No covering daytime pass in the next 12 days.</span></div>`;
+}
+
+let siteIdx = 0, speed = 1, simAnchor = Date.now(), realAnchor = Date.now(), selected = null, lastTrack = 0, lastS2 = 0, lastPass = 0;
+function simTime() { return new Date(simAnchor + (Date.now() - realAnchor) * speed); }
+
+function look(s, date, obs) {
+  const pv = satellite.propagate(s.rec, date);
+  if (!pv.position) return null;
+  const gmst = satellite.gstime(date);
+  const gd = satellite.eciToGeodetic(pv.position, gmst);
+  const ecf = satellite.eciToEcf(pv.position, gmst);
+  const la = satellite.ecfToLookAngles(obs, ecf);
+  return { lat: satellite.degreesLat(gd.latitude), lon: satellite.degreesLong(gd.longitude), alt: gd.height,
+           el: la.elevation / D2R, az: ((la.azimuth / D2R) + 360) % 360, range: la.rangeSat };
+}
+function obsOf(site) { return { latitude: site.lat * D2R, longitude: site.lon * D2R, height: site.h }; }
+
+function dops(vis) {
+  if (vis.length < 4) return null;
+  const G = vis.map(v => { const e = v.el * D2R, a = v.az * D2R; return [Math.cos(e)*Math.sin(a), Math.cos(e)*Math.cos(a), Math.sin(e), 1]; });
+  const N = [0,1,2,3].map(i => [0,1,2,3].map(j => G.reduce((s, r) => s + r[i]*r[j], 0)));
+  const M = N.map((r, i) => r.concat([0,1,2,3].map(j => i === j ? 1 : 0)));
+  for (let c = 0; c < 4; c++) {
+    let p = c; for (let r = c+1; r < 4; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]];
+    const d = M[c][c]; if (Math.abs(d) < 1e-12) return null;
+    for (let j = 0; j < 8; j++) M[c][j] /= d;
+    for (let r = 0; r < 4; r++) if (r !== c) { const f = M[r][c]; for (let j = 0; j < 8; j++) M[r][j] -= f * M[c][j]; }
+  }
+  const Q = M.map(r => r.slice(4));
+  return { pdop: Math.sqrt(Q[0][0] + Q[1][1] + Q[2][2]), hdop: Math.sqrt(Q[0][0] + Q[1][1]) };
+}
+
+function drawSite() {
+  const s = SITES[siteIdx], g = $("siteg"); g.innerHTML = "";
+  const x = mx(s.lon), y = my(s.lat);
+  el("rect", {x: x - 16, y: y - 16, width: 32, height: 32, fill: "var(--fg)", stroke: "var(--sea)", "stroke-width": 5, transform: `rotate(45 ${x} ${y})`}, g);
+  $("siteName").textContent = s.name;
+  // edge of view: satellites at MEO (~23,200 km) above MASK from this site
+  const h = 23222, e = MASK * D2R;
+  const lam = Math.PI/2 - e - Math.asin(R_E * Math.cos(e) / (R_E + h));
+  const f = $("foot"); f.innerHTML = "";
+  let d = "", px = null;
+  for (let b = 0; b <= 360; b += 2) {
+    const br = b * D2R, p1 = s.lat * D2R, l1 = s.lon * D2R;
+    const p2 = Math.asin(Math.sin(p1)*Math.cos(lam) + Math.cos(p1)*Math.sin(lam)*Math.cos(br));
+    let l2 = l1 + Math.atan2(Math.sin(br)*Math.sin(lam)*Math.cos(p1), Math.cos(lam) - Math.sin(p1)*Math.sin(p2));
+    l2 = ((l2 / D2R + 540) % 360) - 180;
+    const X = mx(l2), Y = my(p2 / D2R);
+    d += (px === null || Math.abs(X - px) > 1800 ? "M" : "L") + X.toFixed(0) + " " + Y.toFixed(0);
+    px = X;
+  }
+  el("path", {d, fill: "none", stroke: "var(--accent)", "stroke-width": 6, "stroke-dasharray": "18 12"}, f);
+}
+
+function drawTrack(now) {
+  const t = $("track"); t.innerHTML = "";
+  const s = SATS.find(x => x.id === selected); if (!s) return;
+  const obs = obsOf(SITES[siteIdx]);
+  // Galileo only; Sentinel-2 tracks are drawn by drawS2Tracks
+  let d = "", px = null;
+  for (let m = 0; m <= 360; m += 2) {
+    const p = look(s, new Date(now.getTime() + m * 60000), obs); if (!p) continue;
+    const X = mx(p.lon), Y = my(p.lat);
+    d += (px === null || Math.abs(X - px) > 1800 ? "M" : "L") + X.toFixed(0) + " " + Y.toFixed(0);
+    px = X;
+  }
+  el("path", {d, fill: "none", stroke: "var(--fg)", "stroke-width": 5}, t);
+}
+
+function select(id) {
+  selected = selected === id ? null : id;
+  lastTrack = 0;
+  tick(true);
+}
+
+function tick(force) {
+  const now = simTime();
+  const live = speed === 1 && Math.abs(now - Date.now()) < 2000;
+  $("mode").textContent = live ? "LIVE" : `SIMULATED ×${speed}`;
+  $("mode").className = "pill " + (live ? "live" : "sim");
+  $("clock").textContent = now.toISOString().replace("T", " ").slice(0, 19) + " UTC";
+  const site = SITES[siteIdx], obs = obsOf(site);
+  const sx = mx(site.lon), sy = my(site.lat);
+  const rays = $("rays"); rays.innerHTML = "";
+  const vis = [];
+  SATS.forEach(s => {
+    const p = look(s, now, obs); if (!p) return;
+    s.p = p;
+    const X = mx(p.lon), Y = my(p.lat), v = p.el >= MASK;
+    s.dot.setAttribute("cx", X); s.dot.setAttribute("cy", Y);
+    s.ring.setAttribute("cx", X); s.ring.setAttribute("cy", Y);
+    s.ring.setAttribute("visibility", s.id === selected ? "visible" : "hidden");
+    s.dot.setAttribute("fill", v ? "var(--accent)" : "var(--sat)");
+    s.lbl.setAttribute("x", X + 24); s.lbl.setAttribute("y", Y + 11);
+    s.lbl.setAttribute("visibility", v || s.id === selected ? "visible" : "hidden");
+    if (v) {
+      vis.push(Object.assign({id: s.id, nick: s.nick}, p));
+      if (Math.abs(X - sx) < 1800) el("line", {x1: sx, y1: sy, x2: X, y2: Y, stroke: "var(--accent)", "stroke-width": 3, opacity: .45}, rays);
+    }
+  });
+  vis.sort((a, b) => b.el - a.el);
+  // sky plot
+  const sk = $("skysats"); sk.innerHTML = "";
+  vis.forEach(v => {
+    const r = 130 * (90 - v.el) / 90, x = 150 + r * Math.sin(v.az * D2R), y = 150 - r * Math.cos(v.az * D2R);
+    const sel = v.id === selected;
+    const c = el("circle", {cx: x, cy: y, r: sel ? 8 : 6, fill: "var(--accent)", stroke: sel ? "var(--fg)" : "none", "stroke-width": 2, style: "cursor:pointer"}, sk);
+    c.addEventListener("click", () => select(v.id));
+    const t = el("text", {x: x + 9, y: y + 4, "font-size": 10}, sk); t.textContent = v.id.replace("GSAT", "");
+  });
+  $("nvis").textContent = vis.length;
+  const dp = dops(vis);
+  $("pdop").textContent = dp ? dp.pdop.toFixed(2) : "–";
+  $("hdop").textContent = dp ? dp.hdop.toFixed(2) : "–";
+  // table
+  $("rows").innerHTML = vis.map(v => `<tr data-id="${v.id}" class="${v.id === selected ? "sel" : ""}"><td class="id">${v.id}</td><td>${v.el.toFixed(1)}</td><td>${v.az.toFixed(1)}</td><td>${Math.round(v.range).toLocaleString("en")}</td></tr>`).join("");
+  // Sentinel-2
+  S2.forEach(q => {
+    const p = s2pos(q, now); if (!p) return;
+    q.p = p;
+    const X = mx(p.lon), Y = my(p.lat);
+    q.tri.setAttribute("d", trianglePath(X, Y, 26));
+    q.ring.setAttribute("cx", X); q.ring.setAttribute("cy", Y);
+    q.ring.setAttribute("visibility", q.id === selected ? "visible" : "hidden");
+    q.lbl.setAttribute("x", X + 30); q.lbl.setAttribute("y", Y + 12);
+    const inR = p.lon > 13 && p.lon < 19.5 && p.lat > 45 && p.lat < 48.8;
+    q.rtri.setAttribute("d", inR ? trianglePath(X, Y, .7) : "");
+    q.rlbl.setAttribute("x", X + .9); q.rlbl.setAttribute("y", Y + .4);
+    q.rlbl.setAttribute("visibility", inR ? "visible" : "hidden");
+  });
+  if (force || Math.abs(now - lastS2) > 30000) { drawS2Tracks(now); lastS2 = now.getTime(); }
+  if (force || Math.abs(now - lastPass) > 60000) { renderPasses(now); lastPass = now.getTime(); }
+  // detail + track
+  const q2 = S2.find(x => x.id === selected);
+  const s = SATS.find(x => x.id === selected);
+  if (q2 && q2.p) {
+    const km = gc(site.lat, site.lon, q2.p.lat, q2.p.lon);
+    $("detail").innerHTML = `<b>${q2.id}</b> · Copernicus imaging satellite · below it: ${q2.p.lat.toFixed(2)}°, ${q2.p.lon.toFixed(2)}° · altitude ${Math.round(q2.p.alt)} km · ${Math.round(km).toLocaleString("en")} km from ${site.name} · one orbit every 100 minutes`;
+  } else if (s && s.p) {
+    $("detail").innerHTML = `<b>${s.id}</b> (${s.nick}) · below it: ${s.p.lat.toFixed(2)}°, ${s.p.lon.toFixed(2)}° · altitude ${Math.round(s.p.alt).toLocaleString("en")} km · from ${site.name}: ${s.p.el.toFixed(1)}° elevation, ${Math.round(s.p.range).toLocaleString("en")} km away`;
+  } else $("detail").textContent = "Click a satellite or a row to see its ground track.";
+  if (force || Math.abs(now - lastTrack) > 120000) { drawTrack(now); lastTrack = now.getTime(); }
+}
+
+$("rows").addEventListener("click", e => { const tr = e.target.closest("tr"); if (tr) select(tr.dataset.id); });
+$("site").addEventListener("change", e => { siteIdx = +e.target.value; passCache.key = ""; $("passes").innerHTML = '<div class="pass"><span class="sub">Calculating…</span></div>'; drawSite(); setTimeout(() => tick(true), 30); });
+document.querySelectorAll("[data-speed]").forEach(b => b.addEventListener("click", () => {
+  simAnchor = simTime().getTime(); realAnchor = Date.now(); speed = +b.dataset.speed;
+  document.querySelectorAll("[data-speed]").forEach(x => x.setAttribute("aria-pressed", x === b));
+  tick(true);
+}));
+$("now").addEventListener("click", () => {
+  simAnchor = Date.now(); realAnchor = Date.now(); speed = 1;
+  document.querySelectorAll("[data-speed]").forEach(x => x.setAttribute("aria-pressed", x.dataset.speed === "1"));
+  tick(true);
+});
+
+drawSite();
+tick(true);
+setInterval(() => tick(false), 500);
+</script>
