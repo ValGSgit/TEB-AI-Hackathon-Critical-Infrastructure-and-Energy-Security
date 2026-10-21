@@ -29,7 +29,7 @@ body{margin:0;background:var(--space);color:var(--ink);font-family:var(--f-sans)
 .panel{position:absolute;background:var(--panel);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:12px}
 .top-l{top:calc(14px + env(safe-area-inset-top,0px));left:max(14px,env(safe-area-inset-left,0px));padding:12px 14px;display:grid;gap:8px;max-width:420px}
 .top-r{top:calc(14px + env(safe-area-inset-top,0px));right:max(14px,env(safe-area-inset-right,0px));padding:10px 12px;display:grid;gap:8px;width:300px}
-.side{top:calc(176px + env(safe-area-inset-top,0px));right:max(14px,env(safe-area-inset-right,0px));bottom:118px;width:300px;display:flex;flex-direction:column;overflow:hidden}
+.side{top:calc(206px + env(safe-area-inset-top,0px));right:max(14px,env(safe-area-inset-right,0px));bottom:118px;width:300px;display:flex;flex-direction:column;overflow:hidden}
 .feed{left:max(14px,env(safe-area-inset-left,0px));bottom:118px;width:360px;max-height:34vh;display:flex;flex-direction:column;overflow:hidden}
 .bottom{left:max(14px,env(safe-area-inset-left,0px));right:max(14px,env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));padding:10px 14px;display:grid;gap:8px}
 h1{margin:0;font-size:1.25rem;font-weight:700;letter-spacing:-.01em}
@@ -117,10 +117,11 @@ a{color:var(--work)}
   <section class="panel top-r" aria-label="Layers and view">
     <div class="toggles">
       <label><input type="checkbox" id="lyWork" checked><i class="dot" style="background:var(--work)"></i>Workloads</label>
-      <label><input type="checkbox" id="lyGal" checked><i class="dot" style="background:var(--gal)"></i>Galileo</label>
-      <label><input type="checkbox" id="lyS2" checked><i class="dot" style="background:var(--s2)"></i>Sentinel-2</label>
-      <label><input type="checkbox" id="lyLinks" checked><i class="dot" style="background:transparent;border:1px solid var(--gal)"></i>Satellite links</label>
+      <label><input type="checkbox" id="lyGal"><i class="dot" style="background:var(--gal)"></i>Galileo</label>
+      <label><input type="checkbox" id="lyS2"><i class="dot" style="background:var(--s2)"></i>Sentinel-2</label>
+      <label><input type="checkbox" id="lyLinks"><i class="dot" style="background:transparent;border:1px solid var(--gal)"></i>Satellite links</label>
     </div>
+    <div class="note">Satellite layers are optional context; the challenge itself uses no satellite data.</div>
     <div class="row">
       <button class="btn" type="button" id="vEurope">Europe</button>
       <button class="btn" type="button" id="vConst">Whole constellation</button>
@@ -154,8 +155,7 @@ a{color:var(--work)}
       <div class="row">
         <div class="seg" role="group" aria-label="Playback speed" id="speed"></div>
         <span class="legend"><span><i class="dot" style="background:var(--work)"></i>our workloads (arc from the Vienna controller)</span>
-          <span><i class="dot" style="background:var(--gal)"></i>Galileo, links where ≥ 10° above a busy zone</span>
-          <span><i class="dot" style="background:var(--s2)"></i>Sentinel-2</span></span>
+          <span><i class="dot" style="background:#ffb37a"></i>zone: brighter = dirtier grid</span></span>
       </div>
       <span class="note" id="srcNote"></span>
     </div>
