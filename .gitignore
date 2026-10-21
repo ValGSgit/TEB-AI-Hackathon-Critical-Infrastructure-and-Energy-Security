@@ -6,3 +6,5 @@ __pycache__/
 node_modules/
 sky2.json
 *.zip
+*.bundle
+greenops/ui/dashboard-bare.html

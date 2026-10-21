@@ -131,6 +131,8 @@ class CarbonAware:
         # run_hopeless: set True if Friday's scoring gives credit for partial work on late jobs
         self.safety, self.buffer_h, self.forecast_h, self.min_gain = safety, buffer_h, forecast_h, min_gain
         self.run_hopeless = run_hopeless
+        self.decisions = []        # what the planner decided and why, for the UI
+        self._last = {}
 
     def _curve(self, ctx, zone_id, now):
         f = ctx.forecast(zone_id, now)[: self.forecast_h]
@@ -164,6 +166,16 @@ class CarbonAware:
                 t = (int(t) + 1.0) if t == now else t + 1.0
         return best   # (carbon_g, start_h, option, slack_h) or None if nothing is safe any more
 
+    def _note(self, now, wid, kind, o, t, g_best, g_now, slack):
+        last = self._last.get(wid)
+        if last and last[:4] == (kind, o.zone_id, o.profile_id, o.workers) and abs(last[4] - t) <= 2.0:
+            return                     # only record real changes of plan, not 1-hour jitter
+        self._last[wid] = (kind, o.zone_id, o.profile_id, o.workers, t)
+        self.decisions.append({
+            "t": now, "workload": wid, "decision": kind, "zone": o.zone_id, "profile": o.profile_id,
+            "workers": o.workers, "planned_start": t, "carbon_best_g": round(g_best, 1),
+            "carbon_now_g": round(g_now, 1), "slack_h": round(slack, 1)})
+
     def decide(self, ctx: Context, state: RunState) -> list:
         acts = cleanup(state)
         use = Usage(ctx, state)
@@ -187,7 +199,9 @@ class CarbonAware:
             g_now = self._window_carbon(*curves[o.zone_id], state.now_h, state.now_h + ctx.boot_h,
                                         o.duration_h - ctx.boot_h, o.draw_kw)
             wait_pays = g < g_now * (1 - self.min_gain)
-            if t <= state.now_h + ctx.dt or not wait_pays:
+            start = t <= state.now_h + ctx.dt or not wait_pays
+            self._note(state.now_h, w.id, "start" if start else "wait", o, t, g, g_now, slack)
+            if start:
                 starts.append((slack, o, w.id))
         # tightest slack first, so quotas go to the jobs that cannot wait
         for slack, o, wid in sorted(starts, key=lambda s: s[0]):
