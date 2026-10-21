@@ -36,6 +36,12 @@ class Sim:
     carbon_g: float = 0.0
     disqualified: str = ""
     log: list = field(default_factory=list)
+    trace: bool = True            # record segments / usage / carbon series for the UI
+    segments: list = field(default_factory=list)
+    usage: list = field(default_factory=list)
+    carbon_series: list = field(default_factory=list)
+    wl_carbon: dict = field(default_factory=dict)
+    _open: dict = field(default_factory=dict)
     _ids: itertools.count = field(default_factory=lambda: itertools.count(1))
 
     def __post_init__(self):
@@ -83,8 +89,33 @@ class Sim:
         self.log.append((self.now, "delete", vm_id, v.state.workload_id))
 
     # ---------- time ----------
+    def _record(self) -> None:
+        """One tick of UI trace: phase segments per VM, quota usage, cumulative carbon."""
+        end = self.now + self.dt
+        for vid, v in self.vms.items():
+            st = v.state
+            seg = self._open.get(vid)
+            if seg and seg["phase"] == st.phase and abs(seg["end"] - self.now) < 1e-9:
+                seg["end"] = end
+            else:
+                seg = {"vm": vid, "workload": st.workload_id, "zone": st.zone_id, "profile": st.profile_id,
+                       "phase": st.phase, "start": self.now, "end": end}
+                self.segments.append(seg)
+                self._open[vid] = seg
+        gpus = {}
+        for v in self.vms.values():
+            p = self.P[v.state.profile_id]
+            if p.gpu_family:
+                gpus[p.gpu_family] = gpus.get(p.gpu_family, 0) + p.gpus
+        self.usage.append({"t": self.now, "vms": len(self.vms),
+                           "vcpus": sum(self.P[v.state.profile_id].vcpus for v in self.vms.values()), "gpus": gpus})
+        if abs(self.now - round(self.now)) < 1e-9:
+            self.carbon_series.append({"t": self.now, "carbon_kg": round(self.carbon_g / 1000, 4)})
+
     def step(self) -> None:
         dt = self.dt
+        if self.trace:
+            self._record()
         by_w = {}
         for v in self.vms.values():
             by_w.setdefault(v.state.workload_id, []).append(v)
@@ -107,7 +138,9 @@ class Sim:
                 power = p.idle_kw if st.phase == "done" else p.power_kw
                 kwh = power * dt * self.Z[st.zone_id].pue
                 self.energy_kwh += kwh
-                self.carbon_g += kwh * self.sc.carbon.at(st.zone_id, self.now)
+                g = kwh * self.sc.carbon.at(st.zone_id, self.now)
+                self.carbon_g += g
+                self.wl_carbon[wid] = self.wl_carbon.get(wid, 0.0) + g
             if running and not ws.delivered:
                 # all workers of a workload share one pool of work
                 p = self.P[running[0].state.profile_id]
