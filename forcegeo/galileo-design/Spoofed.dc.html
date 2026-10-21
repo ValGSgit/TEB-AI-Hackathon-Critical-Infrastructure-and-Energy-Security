@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LS-07 Galileo integrity, replay attack</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0;background:#E7E9EC}
+a{color:#2F5D8A}a:hover{color:#1F4268}
+</style>
+</helmet>
+<div style="box-sizing: border-box; width: 100%; max-width: 1440px; margin: 0 auto; padding: 40px 48px 48px; display: flex; flex-direction: column; gap: 24px; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #1D2329; background: #E7E9EC">
+
+  <div style="display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid #C9CDD3; padding-bottom: 20px">
+    <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: #5B6570">ForceGeo · GNSS integrity · SOL branch of the TAG system, Weitendorf → Murfeld (AT/SI border)</div>
+      <h1 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 52px; line-height: 1">LS-07 leak sensor · near Murfeld</h1>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #5B6570">46.705° N 15.655° E · 250 m · Austrian side, about 1 km from the Slovenian border (approximate)</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-end">
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #1D2329">19 Oct 2026 · 17:00:00 UTC</div>
+      <div style="display: flex; gap: 10px; align-items: center; background: #F6DCD8; color: #9E2B1F; padding: 8px 14px; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 14px; letter-spacing: 0.08em">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1 L13 12 L1 12 Z" fill="#B23325"></path></svg>
+        <span>SPOOFING DETECTED · REPORT QUARANTINED</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: #F6DCD8; border-radius: 4px; padding: 16px 20px; display: flex; flex-wrap: wrap; gap: 8px 32px; align-items: baseline">
+    <span style="font-weight: 600; font-size: 16px; color: #1D2329">The receiver is hearing the sky from 11:00 UTC, six hours ago.</span>
+    <span style="font-size: 14px; color: #1D2329">A transmitter near the sensor is replaying a recording. 11 of the 14 satellites it reports are below the horizon at this site right now.</span>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+
+    <div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+      <div style="background: #F4F5F7; border: 1px solid #C9CDD3; border-radius: 4px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px">
+          <h2 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 26px">Reported sky vs real sky</h2>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5B6570">14 reported · 10 really up</span>
+        </div>
+        <svg viewBox="0 0 400 400" style="width: 100%; max-width: 440px; align-self: center" role="img" aria-label="Sky plot comparing 14 replayed satellite positions with the 10 satellites really above the site">
+          <circle cx="200" cy="200" r="170" fill="#FFFFFF" stroke="#8A939D" stroke-width="1.2"></circle>
+          <circle cx="200" cy="200" r="141.7" fill="none" stroke="#C9CDD3" stroke-dasharray="3 4"></circle>
+          <circle cx="200" cy="200" r="113.3" fill="none" stroke="#C9CDD3"></circle>
+          <circle cx="200" cy="200" r="56.7" fill="none" stroke="#C9CDD3"></circle>
+          <line x1="200" y1="30" x2="200" y2="370" stroke="#DADDE2"></line>
+          <line x1="30" y1="200" x2="370" y2="200" stroke="#DADDE2"></line>
+          <text x="200" y="22" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" fill="#1D2329">N</text>
+          <text x="200" y="392" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" fill="#1D2329">S</text>
+          <text x="382" y="204" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" fill="#1D2329">E</text>
+          <text x="18" y="204" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" fill="#1D2329">W</text>
+
+          <circle cx="165.2" cy="185.4" r="6" fill="none" stroke="#5B6570" stroke-width="1.5"></circle>
+          <circle cx="183.9" cy="250.2" r="6" fill="none" stroke="#5B6570" stroke-width="1.5"></circle>
+          <circle cx="277.5" cy="173.0" r="6" fill="none" stroke="#5B6570" stroke-width="1.5"></circle>
+          <circle cx="114.9" cy="226.7" r="6" fill="none" stroke="#5B6570" stroke-width="1.5"></circle>
+          <circle cx="313.1" cy="180.4" r="6" fill="none" stroke="#5B6570" stroke-width="1.5"></circle>
+          <circle cx="109.7" cy="115.8" r="6" fill="none" stroke="#5B6570" stroke-width="1.5"></circle>
+          <circle cx="73.5" cy="204.7" r="6" fill="none" stroke="#5B6570" stroke-width="1.5"></circle>
+          <circle cx="163.0" cy="326.7" r="6" fill="none" stroke="#5B6570" stroke-width="1.5"></circle>
+          <circle cx="293.8" cy="298.9" r="6" fill="none" stroke="#5B6570" stroke-width="1.5"></circle>
+          <circle cx="275.6" cy="73.3" r="6" fill="none" stroke="#5B6570" stroke-width="1.5"></circle>
+
+          <line x1="62.6" y1="148.7" x2="163.0" y2="326.7" stroke="#B23325" stroke-width="1" stroke-dasharray="3 3"></line>
+
+          <rect x="200.6" y="181.4" width="12" height="12" fill="#B23325"></rect><text x="215.9" y="183.0" font-family="IBM Plex Mono, monospace" font-size="10" fill="#9E2B1F">0233</text>
+          <rect x="151.7" y="164.8" width="12" height="12" fill="#B23325"></rect><text x="168.0" y="167.9" font-family="IBM Plex Mono, monospace" font-size="10" fill="#9E2B1F">0213</text>
+          <rect x="259.0" y="197.4" width="12" height="12" fill="#B23325"></rect><text x="243.9" y="222.8" font-family="IBM Plex Mono, monospace" font-size="10" fill="#9E2B1F">0103</text>
+          <rect x="254.9" y="237.3" width="12" height="12" fill="#B23325"></rect><text x="270.0" y="247.8" font-family="IBM Plex Mono, monospace" font-size="10" fill="#9E2B1F">0210</text>
+          <rect x="273.0" y="182.2" width="12" height="12" fill="#B23325"></rect><text x="288.9" y="199.7" font-family="IBM Plex Mono, monospace" font-size="10" fill="#9E2B1F">0215</text>
+          <rect x="228.9" y="284.8" width="12" height="12" fill="#B23325"></rect><text x="243.8" y="294.7" font-family="IBM Plex Mono, monospace" font-size="10" fill="#9E2B1F">0226</text>
+          <rect x="101.7" y="153.0" width="12" height="12" fill="#B23325"></rect><text x="117.0" y="164.5" font-family="IBM Plex Mono, monospace" font-size="10" fill="#9E2B1F">0227</text>
+          <rect x="63.2" y="204.0" width="12" height="12" fill="#B23325"></rect><text x="39.8" y="233.1" font-family="IBM Plex Mono, monospace" font-size="10" fill="#9E2B1F">0101</text>
+          <rect x="71.2" y="148.8" width="12" height="12" fill="#B23325"></rect><text x="76.1" y="143.0" font-family="IBM Plex Mono, monospace" font-size="10" fill="#9E2B1F">0204</text>
+          <rect x="96.5" y="94.1" width="12" height="12" fill="#B23325"></rect><text x="112.3" y="97.3" font-family="IBM Plex Mono, monospace" font-size="10" fill="#9E2B1F">0219</text>
+          <rect x="71.5" y="269.8" width="12" height="12" fill="#B23325"></rect><text x="51.6" y="295.0" font-family="IBM Plex Mono, monospace" font-size="10" fill="#9E2B1F">0224</text>
+          <rect x="56.6" y="142.7" width="12" height="12" fill="#B23325"></rect><text x="34.2" y="139.0" font-family="IBM Plex Mono, monospace" font-size="10" fill="#9E2B1F">0209</text>
+          <rect x="279.4" y="74.7" width="12" height="12" fill="#B23325"></rect><text x="295.6" y="79.4" font-family="IBM Plex Mono, monospace" font-size="10" fill="#9E2B1F">0217</text>
+          <rect x="338.3" y="151.5" width="12" height="12" fill="#B23325"></rect><text x="329.8" y="145.1" font-family="IBM Plex Mono, monospace" font-size="10" fill="#9E2B1F">0201</text>
+        </svg>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: #5B6570">
+          <span style="display: flex; gap: 6px; align-items: center"><svg width="12" height="12" aria-hidden="true"><rect x="1" y="1" width="10" height="10" fill="#B23325"></rect></svg>Reported by the receiver (replayed)</span>
+          <span style="display: flex; gap: 6px; align-items: center"><svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#5B6570" stroke-width="1.5"></circle></svg>Where Galileo really is now</span>
+          <span>Dashed: 0209 reported in the west, really in the south</span>
+        </div>
+      </div>
+
+      <div style="background: #F4F5F7; border: 1px solid #C9CDD3; border-radius: 4px; padding: 20px; display: flex; flex-direction: column; gap: 10px">
+        <h2 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 26px">What ForceGeo does</h2>
+        <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px">
+          <li>Quarantines the reported position and timestamp</li>
+          <li>Keeps the last trusted fix, the surveyed install on the Austrian side, for the leak alarm</li>
+          <li>Keeps the pressure alarm with the Austrian operator instead of handing it across the border</li>
+          <li>Raises a spoofing alert with this evidence attached for the NIS2 report</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="flex: 1.4 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+      <div style="background: #F4F5F7; border: 1px solid #C9CDD3; border-radius: 4px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+        <h2 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 26px">Reported satellites, checked against the orbits</h2>
+        <div style="overflow-x: auto">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums">
+            <thead>
+              <tr style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5B6570; text-align: left">
+                <th style="padding: 8px 10px; border-bottom: 1px solid #C9CDD3; font-weight: 500">Satellite</th>
+                <th style="padding: 8px 10px; border-bottom: 1px solid #C9CDD3; font-weight: 500; text-align: right">Reported elev °</th>
+                <th style="padding: 8px 10px; border-bottom: 1px solid #C9CDD3; font-weight: 500; text-align: right">Real elev now °</th>
+                <th style="padding: 8px 10px; border-bottom: 1px solid #C9CDD3; font-weight: 500; text-align: right">C/N0 dB-Hz*</th>
+                <th style="padding: 8px 10px; border-bottom: 1px solid #C9CDD3; font-weight: 500">OSNMA*</th>
+                <th style="padding: 8px 10px; border-bottom: 1px solid #C9CDD3; font-weight: 500">Finding</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{sats}}" as="s" hint-placeholder-count="14">
+                <tr>
+                  <td style="padding: 7px 10px; border-bottom: 1px solid #DADDE2; font-family: 'IBM Plex Mono', monospace; font-weight: 500">{{s.id}}</td>
+                  <td style="padding: 7px 10px; border-bottom: 1px solid #DADDE2; text-align: right; font-family: 'IBM Plex Mono', monospace">{{s.rep}}</td>
+                  <td style="padding: 7px 10px; border-bottom: 1px solid #DADDE2; text-align: right; font-family: 'IBM Plex Mono', monospace; font-weight: 600">{{s.real}}</td>
+                  <td style="padding: 7px 10px; border-bottom: 1px solid #DADDE2; text-align: right; font-family: 'IBM Plex Mono', monospace">{{s.cn0}}</td>
+                  <td style="padding: 7px 10px; border-bottom: 1px solid #DADDE2; font-family: 'IBM Plex Mono', monospace; color: #9E2B1F">failed</td>
+                  <td style="padding: 7px 10px; border-bottom: 1px solid #DADDE2; color: #9E2B1F">{{s.finding}}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="background: #F4F5F7; border: 1px solid #C9CDD3; border-radius: 4px; padding: 20px; display: flex; flex-direction: column; gap: 4px">
+        <h2 style="margin: 0 0 8px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 26px">Integrity checks</h2>
+        <sc-for list="{{checks}}" as="c" hint-placeholder-count="6">
+          <div style="display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 4px 14px; padding: 10px 0; border-bottom: 1px solid #DADDE2; align-items: baseline">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; color: {{c.fg}}; background: {{c.bg}}; padding: 3px 0; border-radius: 3px; text-align: center">{{c.tag}}</span>
+            <span style="font-weight: 600; font-size: 15px">{{c.name}}</span>
+            <span></span>
+            <span style="font-size: 14px; color: #5B6570">{{c.detail}}</span>
+          </div>
+        </sc-for>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px 24px; padding-top: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 13px">
+          <span>ForceGeo GNSS position <b style="color: #9E2B1F">0.10</b></span><span>GNSS time <b style="color: #9E2B1F">0.15</b></span><span>Trust capped at <b>0.35</b></span><span style="color: #9E2B1F; font-weight: 600">Sensor report QUARANTINED</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="font-size: 12px; color: #5B6570; line-height: 1.6; border-top: 1px solid #C9CDD3; padding-top: 14px">
+    Orbits: real Galileo element sets from CelesTrak, taken from a public mirror refreshed 19 Oct 2026 11:07 UTC. "Reported" positions are the real sky over this site at 11:00 UTC; "real" positions are the same satellites at 17:00 UTC, both computed with SGP4.<br>
+    * Simulated receiver output: C/N0, OSNMA result, clock jump and position shift. The replay attack, LS-07 is a simulated sensor; its location on the real SOL corridor is approximate.
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const below = 'below horizon now';
+    const sats = [
+      ['GSAT0233','82.5','−29.1','47.1',below],
+      ['GSAT0213','62.8','−14.3','47.0',below],
+      ['GSAT0103','55.6','−46.0','47.3',below],
+      ['GSAT0210','50.5','−21.4','46.9',below],
+      ['GSAT0215','47.7','−42.2','47.2',below],
+      ['GSAT0226','38.5','−0.3','47.1',below],
+      ['GSAT0227','36.5','3.0','46.9','wrong place in the sky'],
+      ['GSAT0204','20.8','−21.9','47.2',below],
+      ['GSAT0101','20.6','−9.6','46.9',below],
+      ['GSAT0219','16.1','−34.4','47.2',below],
+      ['GSAT0224','13.7','5.8','46.9','wrong place in the sky'],
+      ['GSAT0209','12.3','20.1','46.9','wrong place in the sky'],
+      ['GSAT0217','12.3','−79.0','47.1',below],
+      ['GSAT0201','10.4','−79.2','47.4',below]
+    ].map(r => ({ id: r[0], rep: r[1], real: r[2], cn0: r[3], finding: r[4] }));
+    const fail = { tag: 'FAIL', fg: '#9E2B1F', bg: '#F6DCD8' };
+    const info = { tag: 'NO TELL', fg: '#5B6570', bg: '#DADDE2' };
+    const checks = [
+      { ...fail, name: 'Sky geometry matches the orbits', detail: '11 of 14 reported satellites are below the horizon here; the other 3 are in the wrong part of the sky. The pattern matches the real sky at 11:00 UTC.' },
+      { ...fail, name: 'OSNMA navigation-message authentication', detail: '0 of 14 authenticated. The signed data is six hours old, far outside the allowed delay, so the signatures cannot be accepted.' },
+      { ...fail, name: 'Signal strength follows elevation', detail: 'Every satellite at 46.9–47.4 dB-Hz, whether high or low. One transmitter nearby, not 14 satellites in space.' },
+      { ...fail, name: 'Clock agrees with station reference', detail: 'Jump of +840 µs at 16:58:41 UTC; normal offset is 18 ns.' },
+      { ...fail, name: 'Position matches the surveyed install', detail: 'Fix moved 2.3 km south, across the border into Slovenia, within 3 s. The sensor is bolted to the pipe.' },
+      { ...info, name: 'Satellite geometry', detail: 'Reported PDOP 1.32 looks excellent. Geometry alone would not catch this attack, which is why ForceGeo combines checks.' }
+    ];
+    return { sats, checks };
+  }
+}
+</script>
+</body>
+</html>

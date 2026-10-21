@@ -1,0 +1,505 @@
+<title>ForceGeo Showcase</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an operator-console page built on ISA-101 "high-performance HMI" rules — muted greys everywhere, colour only when something is abnormal. Story runs top to bottom: problem → live console → mechanism → value → reliability → track fit → glossary. */
+:root{
+  --bg:#e7e9ec; --panel:#f4f5f7; --line:#c9cdd3; --fg:#1d2329; --muted:#5b6570;
+  --accent:#2f5d8a;
+  --ok:#2e7d4f; --warn:#b7791f; --crit:#c0392b;
+  --ok-bg:#dcefe3; --warn-bg:#f6ead2; --crit-bg:#f6dcd8;
+  --pipe:#8a939d;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#1c2025; --panel:#252a30; --line:#3a414a; --fg:#e3e6ea; --muted:#9aa3ad;
+  --accent:#7fa8d1; --ok:#5fbf86; --warn:#e0a548; --crit:#ec6a5c;
+  --ok-bg:#1f3a2a; --warn-bg:#3d3220; --crit-bg:#45231f; --pipe:#6b737c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1c2025; --panel:#252a30; --line:#3a414a; --fg:#e3e6ea; --muted:#9aa3ad;
+  --accent:#7fa8d1; --ok:#5fbf86; --warn:#e0a548; --crit:#ec6a5c;
+  --ok-bg:#1f3a2a; --warn-bg:#3d3220; --crit-bg:#45231f; --pipe:#6b737c; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+.wrap{max-width:1180px;margin:0 auto}
+h1,h2,h3{font-family:var(--f-display);font-weight:600;letter-spacing:.01em;text-wrap:balance;margin:0;line-height:1.05}
+h1{font-size:clamp(2.6rem,6vw,4.4rem);font-weight:700}
+h2{font-size:clamp(1.7rem,3vw,2.3rem)}
+h3{font-size:1.25rem}
+p{margin:0;max-width:66ch}
+.eyebrow{font-family:var(--f-mono);font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+section{padding-block:56px 0;display:grid;gap:22px}
+.lead{font-size:1.12rem;color:var(--muted)}
+a{color:var(--accent)}
+header.hero{padding-block:48px 36px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.tagrow{display:flex;flex-wrap:wrap;gap:8px}
+.tag{font-family:var(--f-mono);font-size:.72rem;border:1px solid var(--line);padding:3px 8px;border-radius:3px;color:var(--muted)}
+.hero .thesis{font-size:1.35rem;max-width:40ch;line-height:1.35}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.card .k{font-family:var(--f-mono);font-size:.72rem;color:var(--crit);letter-spacing:.08em;text-transform:uppercase}
+
+.console{background:var(--panel);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.console-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line)}
+.console-bar .title{font-family:var(--f-display);font-size:1.15rem;font-weight:600}
+.switch{display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer;user-select:none}
+.switch input{appearance:none;width:38px;height:20px;border-radius:10px;background:var(--line);position:relative;cursor:pointer;margin:0;transition:background .2s}
+.switch input::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--panel);transition:left .2s}
+.switch input:checked{background:var(--accent)}
+.switch input:checked::after{left:20px}
+.switch input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.scen{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.scen button{font:500 .85rem var(--f-body);background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:3px;padding:7px 11px;cursor:pointer}
+.scen button:hover{border-color:var(--accent)}
+.scen button[aria-pressed="true"]{border-color:var(--accent);background:var(--bg);box-shadow:inset 0 -2px 0 var(--accent)}
+.scen button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.cbody{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}
+@media (max-width:860px){.cbody{grid-template-columns:1fr}}
+.schem{padding:14px;border-right:1px solid var(--line);display:grid;gap:12px;align-content:start;min-width:0}
+@media (max-width:860px){.schem{border-right:0;border-bottom:1px solid var(--line)}}
+.svgbox{overflow-x:auto}
+svg text{font-family:var(--f-mono);font-size:11px;fill:var(--muted)}
+svg .lbl{fill:var(--fg);font-size:12px}
+.supply{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.8rem}
+.supply .lab{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+.chip{font-family:var(--f-mono);font-size:.75rem;padding:3px 8px;border-radius:3px;border:1px solid var(--line);color:var(--muted)}
+.chip.ok{background:var(--ok-bg);color:var(--ok);border-color:transparent}
+.chip.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.chip.crit{background:var(--crit-bg);color:var(--crit);border-color:transparent;font-weight:600}
+.event{border:1px solid var(--line);border-radius:3px;padding:12px;display:grid;gap:6px;background:var(--bg)}
+.event .row{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.84rem}
+.outcome{border-radius:3px;padding:12px 14px;font-size:.92rem;border-left:4px solid var(--line);background:var(--bg)}
+.outcome.ok{border-color:var(--ok);background:var(--ok-bg)}
+.outcome.warn{border-color:var(--warn);background:var(--warn-bg)}
+.outcome.crit{border-color:var(--crit);background:var(--crit-bg)}
+.analysis{padding:14px;display:grid;gap:14px;align-content:start;min-width:0}
+.sig{display:grid;grid-template-columns:minmax(0,9.5em) 1fr 3.2em;gap:4px 10px;align-items:center;font-size:.84rem}
+.sig .bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.sig .bar i{display:block;height:100%;width:0;border-radius:4px;transition:width .5s ease}
+.sig .note{grid-column:1/-1;font-size:.76rem;color:var(--muted);margin-top:-2px;margin-bottom:4px}
+.sig.na .bar{background:repeating-linear-gradient(45deg,var(--line) 0 4px,transparent 4px 8px)}
+.scorebox{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;align-items:center;border-top:1px solid var(--line);padding-top:12px}
+.score{font-family:var(--f-display);font-size:3.1rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.verdict{justify-self:start;font:600 .82rem var(--f-mono);letter-spacing:.1em;padding:5px 10px;border-radius:3px}
+.verdict.ok{background:var(--ok-bg);color:var(--ok)} .verdict.warn{background:var(--warn-bg);color:var(--warn)} .verdict.crit{background:var(--crit-bg);color:var(--crit)}
+.verdict.off{background:var(--line);color:var(--muted)}
+.why{font-size:.86rem;color:var(--muted)}
+.why li{margin-bottom:3px}
+.why ul{margin:6px 0 0;padding-left:18px}
+.log{border-top:1px solid var(--line);padding:10px 14px;max-height:170px;overflow:auto;font-family:var(--f-mono);font-size:.76rem;color:var(--muted)}
+.log div{padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log .c{color:var(--crit)} .log .w{color:var(--warn)} .log .o{color:var(--ok)}
+.sim-note{font-size:.78rem;color:var(--muted)}
+
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));border:1px solid var(--line);border-radius:4px;background:var(--panel)}
+.flow .step{padding:16px;border-right:1px solid var(--line);display:grid;gap:6px;align-content:start;min-width:0}
+.flow .step:last-child{border-right:0}
+@media (max-width:760px){.flow .step{border-right:0;border-bottom:1px solid var(--line)}.flow .step:last-child{border-bottom:0}}
+.flow .n{font-family:var(--f-mono);font-size:.72rem;color:var(--accent)}
+.flow p{font-size:.86rem;color:var(--muted)}
+pre.formula{font-family:var(--f-mono);font-size:.8rem;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:14px;overflow-x:auto;margin:0;line-height:1.6}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:4px;background:var(--panel)}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+tr:last-child td{border-bottom:0}
+.fit{font-family:var(--f-mono);font-size:.75rem;padding:2px 7px;border-radius:3px;white-space:nowrap}
+.fit.hi{background:var(--ok-bg);color:var(--ok)} .fit.mid{background:var(--warn-bg);color:var(--warn)} .fit.lo{background:var(--line);color:var(--muted)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+ul.plain{margin:0;padding-left:18px;display:grid;gap:8px}
+.gloss{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:0 32px}
+.gloss dl{margin:0}
+.gloss .term{display:grid;grid-template-columns:minmax(0,9em) 1fr;gap:4px 14px;padding:10px 0;border-bottom:1px solid var(--line)}
+.gloss dt{font-family:var(--f-mono);font-size:.82rem;font-weight:500}
+.gloss dd{margin:0;font-size:.88rem;color:var(--muted);min-width:0}
+@media (max-width:480px){.gloss .term{grid-template-columns:1fr}}
+.gloss-h{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);padding-top:18px}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);font-size:.8rem;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<header class="hero">
+  <div class="eyebrow">TEB AI Hackathon · Vienna · 23–25 Oct 2026</div>
+  <h1>ForceGeo</h1>
+  <p class="thesis">Every command that can move a valve should prove where it came from.</p>
+  <p class="lead">ForceGeo checks the claimed location of every operator, device and sensor against several independent signals. When the signals disagree, it holds the action before it reaches the pipeline, so one hijacked login cannot cut a country's supply route.</p>
+  <div class="tagrow">
+    <span class="tag">Track 3 · Pipeline Integrity</span><span class="tag">Track 2 · Cyber-Physical</span><span class="tag">Track 4 · Grid Resilience</span><span class="tag">Track 1 · Energy Security</span><span class="tag">Track 5 · Blackout mode</span>
+  </div>
+</header>
+
+<section id="problem">
+  <div class="eyebrow">The problem</div>
+  <h2>Location is trusted, and location is easy to fake</h2>
+  <p class="lead">Austria's TAG and SOL pipelines carry gas between Italy, Austria and Slovenia, and on to Croatia. Operations on lines like these assume that a login, a GPS fix or a badge scan says where someone really is. Each of those can be forged on its own, and one forged command can reach every country the line connects.</p>
+  <div class="grid3">
+    <div class="card"><div class="k">Stolen remote access</div><h3>A password is enough to reach the valves</h3><p>Remote access into OT networks is often guarded by credentials alone. The 2021 Colonial Pipeline shutdown started from a single compromised VPN password. Nothing checked whether the session came from where the operator was supposed to be.</p></div>
+    <div class="card"><div class="k">GNSS spoofing</div><h3>Sensors take position and time from satellites</h3><p>Leak detectors, inspection drones and SCADA timestamps depend on satellite signals. Cheap transmitters can shift a reported position or clock. Near a border, a shifted leak alarm can land with the wrong country's operator.</p></div>
+    <div class="card"><div class="k">Faked field presence</div><h3>Check-ins and inspection logs are self-reported</h3><p>Contractors working across several countries confirm site visits from a phone app. A copied badge or a spoofed phone location makes an intruder look like normal maintenance.</p></div>
+  </div>
+</section>
+
+<section id="demo">
+  <div class="eyebrow">Live simulation</div>
+  <h2>Run an attack on a real gas corridor</h2>
+  <p class="lead">The route and border points are real: Baumgarten to Arnoldstein on the TAG line, with the SOL branch from Weitendorf to Murfeld on the Slovenian border. The operations, people and signal values are simulated. Turn ForceGeo off to see what the same event does without it.</p>
+
+  <div class="console">
+    <div class="console-bar">
+      <span class="title">TAG / SOL corridor · AT, IT, SI, HR <span class="sim-note mono">· real route, simulated operations</span></span>
+      <label class="switch" for="guard"><input type="checkbox" id="guard" checked> <span id="guardLbl">ForceGeo active</span></label>
+    </div>
+    <div class="scen" id="scenBtns" role="group" aria-label="Scenarios"></div>
+    <div class="cbody">
+      <div class="schem">
+        <div class="svgbox">
+        <svg id="map" viewBox="0 0 700 300" width="100%" style="min-width:560px" role="img" aria-label="Schematic of the TAG line from Baumgarten to Arnoldstein with the SOL branch from Weitendorf to Murfeld">
+          <g id="offtakes"></g>
+          <line x1="50" y1="120" x2="670" y2="120" stroke="var(--pipe)" stroke-width="6" stroke-linecap="round"/>
+          <path id="branch" d="M330 120 V195 H675" fill="none" stroke="var(--pipe)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="360" y="112" style="font-size:10px">TAG · 3 parallel lines, 380 km</text>
+          <text x="345" y="160" style="font-size:10px">SOL branch</text>
+          <g id="nodes"></g>
+          <g id="overlay"></g>
+        </svg>
+        </div>
+        <div class="supply" id="supply"></div>
+        <div class="event" id="event"></div>
+        <div class="outcome" id="outcome"></div>
+      </div>
+      <div class="analysis">
+        <div class="eyebrow">Signal consistency with claimed location</div>
+        <div id="sigs"></div>
+        <div class="scorebox">
+          <div class="score mono" id="score">–</div>
+          <div style="display:grid;gap:6px"><span class="verdict off" id="verdict">IDLE</span><span class="why mono" id="meta"></span></div>
+        </div>
+        <div class="why" id="why"></div>
+      </div>
+    </div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+  <p class="sim-note">The corridor and border points are real; the schematic is not to scale. Asset IDs such as CS-2 and LS-07, all people, IP ranges, readings and valve operations are simulated. Real operators also have storage and other entry points, so the impacts shown are simplified to the first effect.</p>
+</section>
+
+<section id="corridor">
+  <div class="eyebrow">The real corridor</div>
+  <h2>Why this route, and what could really happen</h2>
+  <p class="lead">Since Russian gas transit through Ukraine ended on 1 January 2025, Austria imports through Germany and Italy. The TAG line can now run in either direction, which makes it a key north–south route, and Slovenia depends on the branch that leaves it at Weitendorf.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Part</th><th>Real facts used in the demo</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>TAG line</td><td>Baumgarten an der March to Arnoldstein on the Italian border, about 380 km, three parallel lines, five compressor stations. Operated by TAG GmbH.</td><td><a href="https://en.wikipedia.org/wiki/Trans_Austria_Gas_Pipeline">Wikipedia</a>, <a href="https://www.bmwet.gv.at/Ministerium/Rechtsvorschriften/Energierecht/energiewegerecht/gaswirtschaft/2025/messstation-arnoldstein.html">BMWET</a></td></tr>
+      <tr><td>Arnoldstein</td><td>Metering station on the AT/IT border; TAG applied in January 2025 to automate switching between normal and reverse flow.</td><td><a href="https://www.bmwet.gv.at/Ministerium/Rechtsvorschriften/Energierecht/energiewegerecht/gaswirtschaft/2025/messstation-arnoldstein.html">BMWET</a></td></tr>
+      <tr><td>SOL branch</td><td>Branches off TAG at Weitendorf and supplies Slovenia at the Murfeld (AT) / Ceršak (SI) border point.</td><td><a href="https://en.wikipedia.org/wiki/Trans_Austria_Gas_Pipeline">Wikipedia</a>, <a href="https://www.gem.wiki/Austria%E2%80%93Slovenia_Interconnector_Gas_Pipeline">GEM</a></td></tr>
+      <tr><td>Murfeld / Ceršak</td><td>Flows from Austria to Slovenia only; the point is exempt from building reverse capacity.</td><td><a href="https://www.acer.europa.eu/sites/default/files/documents/Official_documents/Acts_of_the_Agency/Opinions/Opinions/ACER%20Opinion%2002-2022%20on%20SI-AT%20Reverse%20Flow.pdf">ACER Opinion 02/2022</a></td></tr>
+      <tr><td>Croatia</td><td>Connected to Slovenia at Rogatec, part of the Austria–Slovenia–Croatia gas route.</td><td><a href="https://www.gem.wiki/Austria%E2%80%93Slovenia_Interconnector_Gas_Pipeline">GEM</a></td></tr>
+      <tr><td>Austria after 2025</td><td>Can import up to 185 TWh a year through Germany and Italy, backed by storage.</td><td><a href="https://www.vol.at/immediate-stop-to-russian-gas-for-austria-supply-remains-secured/9138415">Vienna Online, 1 Jan 2025</a></td></tr>
+    </tbody>
+  </table></div>
+  <p class="sim-note">Simulated: asset IDs (CS-2, LS-07), valve positions, people, signal values and the attack scenarios. The impacts show the first effect only; real operators would reroute through other entry points and storage.</p>
+</section>
+
+<section id="how">
+  <div class="eyebrow">How it works</div>
+  <h2>Five stages between the request and the pipeline</h2>
+  <div class="flow">
+    <div class="step"><span class="n">1 · Intercept</span><h3>Event arrives</h3><p>A command, check-in or sensor report passes through a ForceGeo gateway in front of SCADA or the field app.</p></div>
+    <div class="step"><span class="n">2 · Collect</span><h3>Gather signals</h3><p>GNSS position and time, cell and Wi-Fi fingerprint, network round-trip time, IP origin, movement history, hardware attestation.</p></div>
+    <div class="step"><span class="n">3 · Check</span><h3>Score each signal</h3><p>Every signal is compared with the claimed location on its own. A score of 1 means fully consistent, 0 means it contradicts it.</p></div>
+    <div class="step"><span class="n">4 · Fuse</span><h3>Trust score</h3><p>A weighted average, capped hard by any strong contradiction, plus an anomaly model trained on each asset's normal behaviour.</p></div>
+    <div class="step"><span class="n">5 · Decide</span><h3>Policy by impact</h3><p>Reading data needs little trust; closing a valve on a cross-border line needs a lot. The result is allow, step-up or block, with a written reason.</p></div>
+  </div>
+  <div class="two">
+    <div style="display:grid;gap:12px;min-width:0">
+    <pre class="formula">trust     = Σ wᵢ·sᵢ / Σ wᵢ     over available signals
+if any sᵢ &lt; 0.25 (wᵢ ≥ 0.10)  → trust = min(trust, 0.35)
+coverage  = Σ wᵢ of available signals
+if coverage &lt; 0.65          → decision at most STEP-UP
+
+weights:  GNSS pos .15 · GNSS time .10 · Cell/Wi-Fi .15
+          Network RTT .15 · IP origin .10
+          Movement .15 · Device attest .20</pre>
+    <pre class="formula">Worked example: stolen VPN credential (cell signal missing)
+
+  0.15×0.90 + 0.10×0.60 + 0.15×0.05 + 0.10×0.10
++ 0.15×0.20 + 0.20×0.00                         = 0.2425
+  sum of weights used (0.15+0.10+0.15+0.10+0.15+0.20) = 0.85
+  trust = 0.2425 / 0.85                         = 0.29
+  0.29 &lt; 0.60 needed to close a valve           → BLOCK</pre>
+    </div>
+    <div class="tbl"><table>
+      <thead><tr><th>Action</th><th>Allow</th><th>Step-up</th><th>Block</th></tr></thead>
+      <tbody>
+        <tr><td>Sensor report</td><td class="mono">≥ 0.70</td><td class="mono">0.40–0.70 (flag)</td><td class="mono">&lt; 0.40 (quarantine)</td></tr>
+        <tr><td>Site check-in</td><td class="mono">≥ 0.60</td><td class="mono">0.35–0.60</td><td class="mono">&lt; 0.35</td></tr>
+        <tr><td>Setpoint change</td><td class="mono">≥ 0.65</td><td class="mono">0.45–0.65</td><td class="mono">&lt; 0.45</td></tr>
+        <tr><td>Valve open / close</td><td class="mono">≥ 0.80</td><td class="mono">0.60–0.80</td><td class="mono">&lt; 0.60</td></tr>
+        <tr><td>Emergency shutdown</td><td colspan="3">Always executes. Low trust raises an alert, never a block.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section id="value">
+  <div class="eyebrow">Value</div>
+  <h2>What operators and countries get</h2>
+  <div class="grid3">
+    <div class="card"><h3>One login can't cut a country's supply route</h3><p>A stolen password can no longer close the valve that feeds a neighbouring country. The attacker would also need to fake the network path, the radio environment, the device and a plausible travel history, all at once.</p></div>
+    <div class="card"><h3>Sensor data you can trust across borders</h3><p>Spoofed positions and clocks are caught at the source. Leak alarms reach the right national operator, and crews go to the right place.</p></div>
+    <div class="card"><h3>Sits in front of what exists</h3><p>ForceGeo runs as a gateway and an app SDK. No replacement of SCADA or field devices. Each decision is logged with its reason, which supports incident reporting under NIS2 in every EU country on the line.</p></div>
+  </div>
+</section>
+
+<section id="reliability">
+  <div class="eyebrow">Consistency and reliability</div>
+  <h2>Built so it does not become the outage</h2>
+  <div class="two">
+    <div class="card"><h3>Safety comes first</h3><ul class="plain">
+      <li><b>Emergency shutdown is never blocked.</b> ForceGeo can only add friction to actions that make things less safe.</li>
+      <li><b>Step-up before block.</b> In the grey zone the operator confirms with a second factor or a supervisor, so work continues.</li>
+      <li><b>Fail-open with alarm</b> for the gateway itself, configurable per action class, so a ForceGeo fault cannot halt the pipeline.</li>
+    </ul></div>
+    <div class="card"><h3>Same input, same answer</h3><ul class="plain">
+      <li><b>Deterministic rules decide;</b> the anomaly model only adjusts within bounds. Every decision can be replayed from its log.</li>
+      <li><b>Every verdict lists its reasons</b> in plain language, as in the console above.</li>
+      <li><b>Degraded mode is explicit.</b> When networks fail in one country, missing signals lower coverage instead of being treated as bad, and decisions fall back to local step-up.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section id="tracks">
+  <div class="eyebrow">Track fit</div>
+  <h2>One trust engine, five places to point it</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Track</th><th>Fit</th><th>How ForceGeo applies</th></tr></thead>
+    <tbody>
+      <tr><td>3 · AI for Pipeline Integrity</td><td><span class="fit hi">primary</span></td><td>Valve and compressor commands, leak-sensor GNSS spoofing, crew check-ins. The demo above.</td></tr>
+      <tr><td>2 · Cyber-Physical Security</td><td><span class="fit hi">strong</span></td><td>Location-aware access control for any OT/ICS command path, detection of unusual behaviour per asset.</td></tr>
+      <tr><td>4 · Power Grid Cyber Resilience</td><td><span class="fit hi">strong</span></td><td>GNSS time-spoofing detection for substations and PMUs; isolate devices whose time or position drifts before a cascade spreads across borders.</td></tr>
+      <tr><td>1 · AI for Energy Security</td><td><span class="fit mid">good</span></td><td>Verify that demand-side assets (batteries, EV chargers) bidding into flexibility markets are where they claim.</td></tr>
+      <tr><td>5 · Blackout Communications</td><td><span class="fit mid">supporting</span></td><td>Degraded mode keeps verification working offline when cellular and internet are down.</td></tr>
+      <tr><td>6 · 5GDHC business model</td><td><span class="fit lo">out of scope</span></td><td>Not a match.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="glossary">
+  <div class="eyebrow">Glossary</div>
+  <h2>Every term on this page, in plain words</h2>
+  <div class="gloss">
+    <dl>
+      <div class="gloss-h">Scoring</div>
+      <div class="term"><dt>Σ wᵢ·sᵢ / Σ wᵢ</dt><dd>A weighted average. Σ means "add up". For each signal i, multiply its weight wᵢ (how much we trust that kind of signal) by its score sᵢ (0 to 1), add the results, then divide by the sum of the weights used. See the worked example above.</dd></div>
+      <div class="term"><dt>Weight (wᵢ)</dt><dd>How much one signal counts. Device attestation counts most (0.20) because a stolen password on an unknown device fails it.</dd></div>
+      <div class="term"><dt>Score (sᵢ)</dt><dd>How well one signal agrees with the claimed location. 1 = fully agrees, 0 = clearly contradicts.</dd></div>
+      <div class="term"><dt>Cap / contradiction</dt><dd>If any important signal scores below 0.25, the trust score cannot go above 0.35, however good the rest look. One clear lie outweighs several agreeing signals.</dd></div>
+      <div class="term"><dt>Coverage</dt><dd>How much of the total weight is available. If cell, network and IP are down, coverage drops to 60% and ForceGeo asks for extra confirmation instead of deciding alone.</dd></div>
+      <div class="term"><dt>Step-up</dt><dd>Ask for more proof before allowing: a second factor, a supervisor code or a camera check.</dd></div>
+      <div class="term"><dt>Isolation Forest</dt><dd>A machine-learning method that finds unusual events by how easily they can be separated from normal ones. Used to learn each asset's normal behaviour.</dd></div>
+      <div class="gloss-h">Location signals</div>
+      <div class="term"><dt>GNSS</dt><dd>Global Navigation Satellite System: the umbrella term for GPS (US), Galileo (EU), GLONASS (Russia) and BeiDou (China). Gives position and very precise time.</dd></div>
+      <div class="term"><dt>GNSS spoofing</dt><dd>Broadcasting fake satellite signals so a receiver computes a wrong position or time. Jamming is the cruder version: drowning the signal out.</dd></div>
+      <div class="term"><dt>RTT</dt><dd>Round-trip time: how long a challenge sent by our gateway takes to come back. Data in fibre covers at most about 200 km per millisecond, so a short RTT proves the device is near; a long one proves little on its own, because mobile networks add delay. ForceGeo compares each device with its own normal RTT.</dd></div>
+      <div class="term"><dt>IP origin / ASN</dt><dd>Every internet address belongs to a network with an Autonomous System Number. It shows whether a connection comes from the utility's own network, a mobile carrier, or a rented server abroad.</dd></div>
+      <div class="term"><dt>Cell / Wi-Fi fingerprint</dt><dd>The set of mobile towers and Wi-Fi networks a phone can see. Hard to fake remotely, because you would have to be physically there.</dd></div>
+      <div class="term"><dt>APN</dt><dd>Access Point Name: the gateway a SIM card uses to reach a network. Utilities and contractors often get a private APN, so their devices never touch the public internet. "Contractor APN" = traffic arriving through the contractor's own SIM network.</dd></div>
+      <div class="term"><dt>Device attestation</dt><dd>Proof from a chip inside the device (TPM or secure element) that it is a known, unmodified device. A stolen password on an unknown laptop fails this.</dd></div>
+    </dl>
+    <dl>
+      <div class="gloss-h">Pipeline and control</div>
+      <div class="term"><dt>SCADA</dt><dd>Supervisory Control and Data Acquisition: the software operators use to watch and control a pipeline or grid remotely.</dd></div>
+      <div class="term"><dt>OT / ICS</dt><dd>Operational Technology / Industrial Control Systems: the computers that move physical things (valves, pumps, breakers), as opposed to office IT.</dd></div>
+      <div class="term"><dt>PLC</dt><dd>Programmable Logic Controller: a small rugged computer at the site that actually opens the valve.</dd></div>
+      <div class="term"><dt>Block valve (BV)</dt><dd>A large valve that can shut off a section of pipeline. Closing one stops flow to everything downstream.</dd></div>
+      <div class="term"><dt>Compressor station (CS)</dt><dd>A site that re-pressurises gas every 100–200 km so it keeps flowing.</dd></div>
+      <div class="term"><dt>Setpoint</dt><dd>The target value a controller holds, such as output pressure in bar.</dd></div>
+      <div class="term"><dt>ESD</dt><dd>Emergency shutdown: the safety action that stops the process. ForceGeo never blocks it.</dd></div>
+      <div class="term"><dt>TSO</dt><dd>Transmission System Operator: the company running the high-pressure gas or power network in one country.</dd></div>
+      <div class="term"><dt>PMU</dt><dd>Phasor Measurement Unit: a grid sensor that timestamps measurements with GNSS time. Wrong time can trigger wrong protection actions.</dd></div>
+      <div class="gloss-h">Security and comms</div>
+      <div class="term"><dt>VPN</dt><dd>Virtual Private Network: an encrypted tunnel that lets someone reach an internal network from outside. If the password leaks, so does the tunnel.</dd></div>
+      <div class="term"><dt>VPS</dt><dd>Virtual Private Server: a cheap rented server, often used by attackers to hide where they really are.</dd></div>
+      <div class="term"><dt>SOC</dt><dd>Security Operations Centre: the team that watches alerts and responds to attacks.</dd></div>
+      <div class="term"><dt>Fail-open</dt><dd>If ForceGeo itself breaks, commands pass through with an alarm instead of everything stopping.</dd></div>
+      <div class="term"><dt>TETRA</dt><dd>A digital radio system used by emergency services and utilities. Works when mobile networks are down.</dd></div>
+      <div class="term"><dt>LoRa</dt><dd>Long-range, low-power radio used by remote sensors to send small readings over many kilometres.</dd></div>
+      <div class="term"><dt>NIS2</dt><dd>The EU directive that requires energy operators to manage cyber risk and report serious incidents quickly.</dd></div>
+    </dl>
+  </div>
+</section>
+
+<footer>ForceGeo · prototype concept for the TEB AI Hackathon at TU Wien. Simulation data is illustrative.</footer>
+</div>
+
+<script>
+const W={gnss:.15,time:.10,cell:.15,rtt:.15,ip:.10,move:.15,dev:.20};
+const NAMES={gnss:"GNSS position",time:"GNSS time",cell:"Cell / Wi-Fi",rtt:"Network RTT",ip:"IP origin",move:"Movement history",dev:"Device attestation"};
+const POLICY={
+  sensor:{name:"Sensor report",allow:.70,step:.40,labels:["ACCEPT","FLAG","QUARANTINE"]},
+  checkin:{name:"Site check-in",allow:.60,step:.35,labels:["ALLOW","STEP-UP","BLOCK"]},
+  setpoint:{name:"Setpoint change",allow:.65,step:.45,labels:["ALLOW","STEP-UP","BLOCK"]},
+  valve:{name:"Valve open / close",allow:.80,step:.60,labels:["ALLOW","STEP-UP","BLOCK"]}
+};
+const COVERAGE_MIN=.65;
+const NODES=[
+  {id:"HUB",x:50,y:120,label:"Baumgarten",sub:"AT · entry hub",pos:"below",anchor:"start"},
+  {id:"CS",x:215,y:120,label:"CS-2",sub:"AT · TAG compressor",pos:"below"},
+  {id:"BV",x:330,y:120,label:"Weitendorf",sub:"AT · SOL branch valve",pos:"above"},
+  {id:"EX",x:590,y:120,label:"Arnoldstein",sub:"AT/IT border point",pos:"below"},
+  {id:"LS",x:450,y:195,label:"LS-07 · Murfeld",sub:"AT/SI border · leak sensor",pos:"below"}
+];
+const COUNTRIES=[
+  {id:"AT",x:110,y:120,dir:-1,name:"Austria",city:"domestic grid"},
+  {id:"IT",x:655,y:120,dir:-1,name:"Italy",city:"via Tarvisio"},
+  {id:"SI",x:560,y:195,dir:1,name:"Slovenia",city:"via Ceršak"},
+  {id:"HR",x:645,y:195,dir:1,name:"Croatia",city:"via Rogatec"}
+];
+const S=[
+ {id:"legit",btn:"Legit setpoint change",action:"setpoint",node:"CS",
+  who:"Engineer A. Gruber (work order WO-4471)",what:"Raise CS-2 discharge pressure by 2 bar for winter demand",claim:"On site in the CS-2 control room",
+  sig:{gnss:[.95,"Fix inside the station fence, 4 m accuracy"],time:[.97,"Clock offset 12 µs, normal"],cell:[.92,"Sees the usual nearby towers and station Wi-Fi"],rtt:[.90,"6 ms over the wired control-room link; this terminal's normal is 4–8 ms"],ip:[.95,"Operator's private network"],move:[.93,"Badge-in at 07:58, tablet on site since"],dev:[.98,"Enrolled control-room terminal, hardware key valid"]},
+  off:{cls:"ok",text:"Setpoint changed. No difference here: legitimate work is never slowed down.",sup:{}},
+  on:{text:"Setpoint changed. All seven signals agree with the claimed location.",sup:{}}},
+ {id:"vpn",btn:"Stolen VPN credential",action:"valve",node:"BV",attacker:true,
+  who:"Account a.gruber via remote VPN",what:"Close the SOL branch valve at Weitendorf",claim:"On site at Weitendorf (GPS sent by the client app)",
+  sig:{gnss:[.90,"Reported fix matches Weitendorf, but it comes from the client and can be typed in"],time:[.60,"No GNSS time from a real receiver"],cell:[null,"No radio data: the session is not from a phone"],rtt:[.05,"184 ms; this account's tablet normally answers in 30–45 ms over 4G"],ip:[.10,"Rented server range at a foreign hosting provider"],move:[.20,"Gruber's phone is at home in Graz, 20 km away, idle since 22:10"],dev:[.00,"Unknown device, no hardware key"]},
+  off:{cls:"crit",text:"Weitendorf branch valve closed. Flow into the SOL line stops, so Slovenia loses its supply route from Austria. The Murfeld/Ceršak point cannot run in reverse, so Slovenia must lean on its entries from Italy and Croatia, and onward flow to Croatia drops.",sup:{SI:"crit",HR:"warn"}},
+  on:{text:"Command held before it reached SCADA. Gas keeps flowing to Slovenia and Croatia. SOC alerted, account suspended, Gruber notified on his enrolled phone.",sup:{}}},
+ {id:"gnss",btn:"GNSS spoof at the border",action:"sensor",node:"LS",spoof:true,
+  who:"Leak sensor LS-07 (fixed install, Austrian side)",what:"Report a pressure drop with position",claim:"Surveyed position next to the Murfeld border point",
+  sig:{gnss:[.10,"Position jumped 2.3 km south, across the border into Slovenia, in 3 s; the sensor is bolted to the pipe"],time:[.15,"Clock offset 840 µs, normal is under 20 µs"],cell:[.90,"Same LoRa gateway as always"],rtt:[.95,"Normal link latency for this sensor"],ip:[.95,"Expected SCADA subnet"],move:[.05,"Fixed asset reported as moving"],dev:[.95,"Sensor key valid"]},
+  off:{cls:"crit",text:"The leak alarm is filed against a position in Slovenia and handed across the border. No Austrian crew is sent, and the real leak next to the Murfeld point keeps running on the line that supplies Slovenia.",sup:{SI:"warn",HR:"warn"}},
+  on:{text:"Spoofed position and time quarantined. The alarm stays with the Austrian operator and the crew is sent to the surveyed site.",sup:{}}},
+ {id:"travel",btn:"Impossible travel check-in",action:"checkin",node:"BV",
+  who:"Contractor badge C-2093 (S. Novak)",what:"Check in at the Weitendorf station gate",claim:"At the Weitendorf gate",
+  sig:{gnss:[.70,"Phone reports the gate, accuracy 35 m"],time:[.90,"Normal"],cell:[.30,"Radio environment matches Baumgarten, not Weitendorf"],rtt:[.80,"Normal mobile latency for this phone"],ip:[.90,"Contractor's private mobile network (APN)"],move:[.05,"Same badge checked in at Baumgarten 4 min ago, 188 km away"],dev:[.90,"Known phone"]},
+  off:{cls:"warn",text:"Gate opened. The badge was cloned; someone unknown is inside the station where the SOL branch to Slovenia starts.",sup:{SI:"warn",HR:"warn"}},
+  on:{text:"Gate held. A supervisor confirms by camera or radio before entry.",sup:{}}},
+ {id:"blackout",btn:"Storm outage at the border",action:"valve",node:"LS",degraded:true,
+  who:"Technician M. Horvat during a storm outage in southern Styria",what:"Close the section valve next to LS-07 to isolate a damaged segment",claim:"On site at the LS-07 section valve",
+  sig:{gnss:[.93,"Fix inside the fence"],time:[.90,"Normal"],cell:[null,"Local cell network down"],rtt:[null,"Backhaul down"],ip:[null,"No IP path"],move:[.90,"Tablet logged the drive from the Graz depot"],dev:[.97,"Hardware key valid, checked locally on the tablet"]},
+  off:{cls:"warn",text:"Valve closed without any check. It was the right call this time, but during the same outage an attacker's command would go through just as easily.",sup:{SI:"warn",HR:"warn"}},
+  on:{text:"The remaining signals agree, but coverage is low. Local step-up: the dispatcher reads a one-time code over TETRA radio, then the valve closes. The damaged segment is isolated, and Slovenia draws on its entries from Italy and Croatia until repair.",sup:{SI:"warn"}}}
+];
+let cur=null;
+const $=id=>document.getElementById(id);
+function score(sc){
+  let sw=0,sv=0,hard=false;
+  for(const k in W){const v=sc.sig[k][0];if(v===null)continue;sw+=W[k];sv+=W[k]*v;if(v<.25&&W[k]>=.10)hard=true;}
+  let t=sv/sw; const raw=t; if(hard)t=Math.min(t,.35);
+  return {t,raw,hard,cov:sw};
+}
+function decide(sc,r){
+  const p=POLICY[sc.action];let lvl=r.t>=p.allow?0:r.t>=p.step?1:2;
+  if(r.cov<COVERAGE_MIN-1e-9&&lvl===0)lvl=1;
+  return {lvl,label:p.labels[lvl],cls:["ok","warn","crit"][lvl],p};
+}
+function now(){return new Date().toTimeString().slice(0,8);}
+function log(msg,c){const el=document.createElement("div");if(c)el.className=c;el.textContent=now()+"  "+msg;$("log").prepend(el);}
+const COL={ok:"var(--ok)",warn:"var(--warn)",crit:"var(--crit)"};
+const CHIP={ok:"supplied",warn:"at risk",crit:"Austrian route cut"};
+function drawOfftakes(sup){
+  const g=$("offtakes");g.innerHTML="";
+  COUNTRIES.forEach(c=>{
+    const st=sup[c.id]||"ok";
+    const y2=c.y+(c.dir<0?-62:44), cy=c.y+(c.dir<0?-68:50);
+    const ty1=c.dir<0?cy-28:cy+24, ty2=c.dir<0?cy-14:cy+38;
+    g.insertAdjacentHTML("beforeend",`<line x1="${c.x}" y1="${c.y}" x2="${c.x}" y2="${y2}" stroke="${st==="ok"?"var(--pipe)":COL[st]}" stroke-width="3" ${st==="crit"?'stroke-dasharray="6 5"':""}/>
+      <circle cx="${c.x}" cy="${cy}" r="7" fill="${COL[st]}"/>
+      <text class="lbl" x="${c.x}" y="${ty1}" text-anchor="middle">${c.name}</text><text x="${c.x}" y="${ty2}" text-anchor="middle">${c.city}</text>`);
+  });
+  $("supply").innerHTML=`<span class="lab">Gas supply</span>`+COUNTRIES.map(c=>{const st=sup[c.id]||"ok";return `<span class="chip ${st}">${c.id} ${CHIP[st]}</span>`;}).join("");
+}
+function drawNodes(active,state){
+  const g=$("nodes");g.innerHTML="";
+  NODES.forEach(n=>{
+    const on=n.id===active;
+    const col=on?(COL[state]||"var(--accent)"):"var(--panel)";
+    const stroke=on?col:"var(--pipe)";
+    const {x,y}=n;
+    const shape=n.id==="BV"
+      ?`<path d="M${x-13} ${y-12} L${x+13} ${y+12} L${x+13} ${y-12} L${x-13} ${y+12} Z" fill="${col}" stroke="${stroke}" stroke-width="2"/>`
+      :n.id==="CS"?`<rect x="${x-14}" y="${y-14}" width="28" height="28" rx="2" fill="${col}" stroke="${stroke}" stroke-width="2"/>`
+      :`<circle cx="${x}" cy="${y}" r="12" fill="${col}" stroke="${stroke}" stroke-width="2"/>`;
+    const anchor=n.anchor||"middle", tx=n.anchor==="start"?x-12:x;
+    const y1=n.pos==="above"?y-36:y+32, y2=n.pos==="above"?y-22:y+46;
+    g.insertAdjacentHTML("beforeend",shape+`<text class="lbl" x="${tx}" y="${y1}" text-anchor="${anchor}">${n.label}</text><text x="${tx}" y="${y2}" text-anchor="${anchor}">${n.sub}</text>`);
+  });
+}
+function overlay(sc,guard,sup){
+  const o=$("overlay");o.innerHTML="";
+  const n=NODES.find(x=>x.id===sc.node);
+  if(sc.attacker){
+    o.insertAdjacentHTML("beforeend",`<rect x="400" y="14" width="190" height="36" rx="3" fill="var(--crit-bg)" stroke="var(--crit)"/><text x="495" y="29" text-anchor="middle" style="fill:var(--crit)">Rented server abroad</text><text x="495" y="43" text-anchor="middle" style="fill:var(--crit)">RTT 184 ms</text>
+    <path d="M400 32 C 370 32, ${n.x+30} 50, ${n.x+10} 106" fill="none" stroke="var(--crit)" stroke-width="1.5" stroke-dasharray="5 4"/>`);
+    if(guard)o.insertAdjacentHTML("beforeend",`<circle cx="372" cy="44" r="11" fill="var(--panel)" stroke="var(--ok)" stroke-width="2"/><text x="372" y="48" text-anchor="middle" style="fill:var(--ok);font-weight:600">FG</text>`);
+  }
+  if(sc.spoof||sc.degraded){
+    o.insertAdjacentHTML("beforeend",`<line x1="505" y1="150" x2="505" y2="210" stroke="var(--muted)" stroke-dasharray="2 4"/><text x="505" y="146" text-anchor="middle" style="font-size:10px">AT | SI</text>`);
+  }
+  if(sc.spoof){
+    o.insertAdjacentHTML("beforeend",`<circle cx="${n.x+80}" cy="${n.y}" r="10" fill="var(--panel)" stroke="var(--crit)" stroke-width="2" stroke-dasharray="3 3"/><text x="${n.x+80}" y="${n.y-18}" text-anchor="middle" style="fill:var(--crit)">spoofed</text>
+    <path d="M${n.x+14} ${n.y} L${n.x+68} ${n.y}" stroke="var(--crit)" stroke-width="2" stroke-dasharray="3 3"/>`);
+  }
+  if(sc.id==="travel"){
+    o.insertAdjacentHTML("beforeend",`<path d="M50 104 C 110 40, 260 40, ${n.x-6} 104" fill="none" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="5 4"/><text x="190" y="50" text-anchor="middle" style="fill:var(--warn)">188 km in 4 min</text>`);
+  }
+  if(sc.degraded){
+    o.insertAdjacentHTML("beforeend",`<rect x="${n.x-95}" y="${n.y-40}" width="150" height="22" rx="3" fill="var(--warn-bg)" stroke="var(--warn)"/><text x="${n.x-20}" y="${n.y-25}" text-anchor="middle" style="fill:var(--warn)">storm outage · no network</text>`);
+  }
+  const cut=sup.SI==="crit";
+  const b=$("branch");
+  b.setAttribute("stroke",cut?"var(--crit)":"var(--pipe)");
+  b.setAttribute("stroke-dasharray",cut?"10 8":"");
+}
+function run(sc){
+  cur=sc;
+  const guard=$("guard").checked;
+  document.querySelectorAll("#scenBtns button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.id===sc.id));
+  const r=score(sc), d=decide(sc,r);
+  $("event").innerHTML=`<div class="eyebrow">${POLICY[sc.action].name}</div><div><b>${sc.what}</b></div><div class="row"><span>From: <b>${sc.who}</b></span><span>Claims: <b>${sc.claim}</b></span></div>`;
+  const box=$("sigs");box.innerHTML="";
+  Object.keys(W).forEach((k,i)=>{
+    const [v,note]=sc.sig[k];
+    const col=v===null?"var(--line)":v>=.7?"var(--ok)":v>=.4?"var(--warn)":"var(--crit)";
+    const div=document.createElement("div");div.className="sig"+(v===null?" na":"");
+    div.innerHTML=`<span>${NAMES[k]}</span><span class="bar"><i style="background:${col}"></i></span><span class="mono" style="text-align:right">${v===null?"n/a":v.toFixed(2)}</span><span class="note">${note}</span>`;
+    box.appendChild(div);
+    if(guard&&v!==null)setTimeout(()=>{div.querySelector("i").style.width=(v*100)+"%"},60+i*90);
+  });
+  const oc=$("outcome");
+  if(guard){
+    $("score").textContent=r.t.toFixed(2);
+    $("score").style.color=`var(--${d.cls})`;
+    $("verdict").className="verdict "+d.cls;$("verdict").textContent=d.label;
+    $("meta").textContent=`coverage ${(r.cov*100).toFixed(0)}% · thresholds ${d.p.allow.toFixed(2)} / ${d.p.step.toFixed(2)}`;
+    const reasons=Object.keys(W).filter(k=>sc.sig[k][0]!==null&&sc.sig[k][0]<.4).map(k=>NAMES[k]+": "+sc.sig[k][1]);
+    if(r.hard)reasons.push(`Strong contradiction caps trust at 0.35 (weighted average alone was ${r.raw.toFixed(2)}).`);
+    if(r.cov<COVERAGE_MIN-1e-9)reasons.push(`Only ${(r.cov*100).toFixed(0)}% of signal weight available, so the best possible outcome is step-up.`);
+    if(!reasons.length)reasons.push("All available signals agree with the claimed location.");
+    $("why").innerHTML="<b>Why</b><ul>"+reasons.map(x=>"<li>"+x+"</li>").join("")+"</ul>";
+    oc.className="outcome "+(d.cls==="crit"||sc.id==="legit"?"ok":d.cls);oc.textContent=sc.on.text;
+    drawOfftakes(sc.on.sup);drawNodes(sc.node,d.cls);overlay(sc,true,sc.on.sup);
+    log(`${d.label.padEnd(10)} ${sc.what} · trust ${r.t.toFixed(2)}`,["o","w","c"][d.lvl]);
+  }else{
+    $("score").textContent="–";$("score").style.color="var(--muted)";
+    $("verdict").className="verdict off";$("verdict").textContent="NOT CHECKED";
+    $("meta").textContent="ForceGeo off · credentials accepted as-is";
+    $("why").innerHTML="Signals are still collected here for comparison, but nothing evaluates them.";
+    oc.className="outcome "+sc.off.cls;oc.textContent=sc.off.text;
+    drawOfftakes(sc.off.sup);drawNodes(sc.node,sc.off.cls);overlay(sc,false,sc.off.sup);
+    log(`EXECUTED   ${sc.what} · unverified`,{ok:"o",warn:"w",crit:"c"}[sc.off.cls]);
+  }
+}
+S.forEach(sc=>{const b=document.createElement("button");b.type="button";b.textContent=sc.btn;b.dataset.id=sc.id;b.setAttribute("aria-pressed","false");b.onclick=()=>run(sc);$("scenBtns").appendChild(b);});
+$("guard").addEventListener("change",()=>{$("guardLbl").textContent=$("guard").checked?"ForceGeo active":"ForceGeo off";if(cur)run(cur);});
+log("Console ready. Pick a scenario.");
+run(S[1]);
+</script>
