@@ -1,0 +1,20 @@
+# Glossary
+
+- **Carbon-aware orchestration**: scheduling workloads on low-carbon energy instead of a fixed zone.
+- **gCO2/kWh**: grams of CO2 equivalent per kilowatt-hour of grid energy.
+- **PUE**: facility-efficiency factor; includes overhead of the data centre (simulated values like 1.15–1.25).
+- **Forecast**: predicted carbon intensity per zone per hour; the planner may only use values issued up to now.
+- **DQ / disqualification**: the run is disqualified for a residency violation; scoring returns zero.
+- **Residency**: workload allowed countries; placement outside them is forbidden.
+- **Checkpoint**: saved progress before a restart; restart-sensitive jobs lose progress.
+- **Work units**: unit of compute work a workload needs.
+- **Slack**: hours available between planned start plus duration and the deadline.
+- **Horizon**: simulated window of a run (120 h in the challenge).
+- **Quota**: max VMs (20), max vCPUs (320), GPU card caps per family.
+- **Phase**: platform allocation timeline phase (Booting, Input/setup, Computing, Stopped, Idle, Output waiting, Waiting for release).
+- **Baseline policy**: fixed legal zone, start at release, lowest-energy option meeting the deadline.
+- **CarbonAware policy**: replans every tick over legal options and cleaner forecast windows; safety margin 1.2x, buffer 2h, min gain 3%.
+- **Experiment ladder**: baseline -> +cleanest zone -> +wait for cleaner hours -> idle-VM ablation, on the same seeds.
+- **Stand-in score**: local scoring formula (20k base + 5k bonus) until the organizers' frozen policy is plugged in.
+- **Galileo / Sentinel-2**: satellites used for position/time (Galileo) and imaging (Sentinel-2) in the demo views.
+- **Spoofing**: replaying a sky/track to make a receiver believe a satellite position that was not really observed.
