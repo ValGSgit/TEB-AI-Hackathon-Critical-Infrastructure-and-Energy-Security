@@ -13,9 +13,10 @@ python -m greenops.export --seed 3 && python ui/build.py   # -> ui/dashboard.htm
 python globe/build.py                                      # -> globe/earth.html
 ```
 
-ForceGeo pages: open `forcegeo/showcase/index.html` or `forcegeo/galileo-live/galileo-live.html` in a browser
-(`forcegeo/galileo-design/*.dc.html` need the design-canvas runtime, see known-issues). Rebuild Galileo Live after
-refreshing orbit data:
+ForceGeo pages: open `forcegeo/showcase/index.html` or `forcegeo/galileo-live/galileo-live.html` in a browser.
+`forcegeo/galileo-design/*.dc.html` cannot be opened directly: they need `./support.js` from the design-canvas
+runtime, which is not in the repo. View them in the published design canvas; the files here are the source. Rebuild
+Galileo Live after refreshing orbit data:
 
 ```bash
 python forcegeo/galileo-live/build.py

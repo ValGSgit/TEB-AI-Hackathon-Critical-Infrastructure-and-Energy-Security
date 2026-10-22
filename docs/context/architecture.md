@@ -17,7 +17,8 @@ during the event lives here.
 ## greenops/ (primary track)
 
 Product area that contains the scheduler, the decision-explainer UI and the 3D replay. The Python package is
-`greenops/greenops/`; scripts, tests and pages sit directly under `greenops/`. Layered as:
+`greenops/greenops/`; scripts, tests and pages sit directly under `greenops/`. Paths below are relative to the
+repo root. Layered as:
 
 1. `greenops/greenops/catalog.py` — known facts from the organizers' guide/preview vs. clearly marked ASSUMED values.
 2. `greenops/greenops/scenario.py` — synthetic practice scenarios shaped like the real challenge (random per seed).
@@ -44,7 +45,7 @@ Standalone demo area, kept separate from the GreenOps product:
 | --- | --- |
 | `showcase/` | Interactive demo page: location-trust checks for pipeline commands on the real TAG/SOL gas corridor. Backup for the open security track. |
 | `galileo-live/` | Demo page with live Galileo and Sentinel-2 positions from real orbit data (TLE). `build.py` regenerates `galileo-live.html` from `template.html` + `data/` (CelesTrak TLEs, Natural Earth world). |
-| `galileo-design/` | Source of two design-canvas screens: authentic Galileo sky vs. replay spoofing attack at the Murfeld sensor (they need the canvas runtime, see known-issues). `compute_sky.py` computes the real sky with skyfield -> `sky2.json`. |
+| `galileo-design/` | Source of two design-canvas screens: authentic Galileo sky vs. replay spoofing attack at the Murfeld sensor (view them in the published design canvas; they need the canvas runtime, see known-issues). `compute_sky.py` computes the real sky with skyfield -> `sky2.json`. |
 
 ## Cross-cutting concerns
 

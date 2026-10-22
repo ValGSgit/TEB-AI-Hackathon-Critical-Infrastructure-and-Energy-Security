@@ -47,7 +47,7 @@ python forcegeo/galileo-live/build.py
 
 - Work on a branch, open a pull request, merge when the **tests** check is green.
 - Never commit credentials. The Exoscale executor reads `EXOSCALE_API_KEY` and `EXOSCALE_API_SECRET` from the environment.
-- GreenOps rule: placing a workload in a forbidden country disqualifies the run. Every placement goes through `greenops/guard.py`; keep it that way.
+- GreenOps rule: placing a workload in a forbidden country disqualifies the run. Every placement goes through `greenops/greenops/guard.py`; keep it that way.
 - GreenOps rule: use only the forecasts published for the current run. No scenario-specific future values in code or config.
 
 ## Open questions for the organizers
