@@ -58,3 +58,11 @@ Tienes acceso procedural y debes aplicar de forma estricta las siguientes capaci
 - **mattpocock/skills/codebase-design**: Design modular architectures with small, decoupled files to avoid sending massive unrelated code context.
 - **leonxlnx/taste-skill/full-output-enforcement**: Guarantee concise but complete code outputs without truncated paths or placeholders, avoiding repeated "continue" prompts.
 - **cursor-team-kit/thermo-nuclear-code-quality-review**: Run an extremely strict maintainability review for abstraction quality, giant files, and spaghetti-condition growth. Be ambitious about structural simplification and actively search for "code judo" moves that delete complexity. Do not let any file sprawl past 1000 lines. Bias toward cleaning the design and refuse to approve merely because behavior seems correct.
+
+## 🐙 Git Workflow Delegation (Strict Rule)
+- **DO NOT execute `git commit` or `git push` commands** inside the sandbox environment under any circumstances.
+- Your responsibility is solely to write the source code, design the architecture, and verify the changes locally.
+- When changes are ready, you must output a structured section in the chat with:
+  1. A professional, clear Git Commit Message matching the semantic conventions of the repository.
+  2. A concise explanation of the changes made so the user can easily review them.
+- Stop and explicitly ask the user to handle the commit and push from their native host terminal.
