@@ -23,7 +23,7 @@ GreenOps orchestrator (Python 3.12+):
 ```bash
 cd greenops
 pip install -r requirements-dev.txt
-pytest                      # 34 tests, incl. the residency rule that can disqualify a run
+pytest                      # 35 tests, incl. the residency rule that can disqualify a run
 python -m greenops.play --seeds 4           # planner vs baselines on the offline game
 python compare.py 20        # baseline vs carbon-aware on 20 practice scenarios
 python -m greenops.experiments --seeds 12   # experiment ladder (feeds the Control Room)

@@ -39,15 +39,33 @@ Windows checkouts.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                       # 34 tests (on Windows: set PYTHONUTF8=1 for the exoscale package)
+python -m pytest -q                       # 35 tests (on Windows: set PYTHONUTF8=1 for the exoscale package)
 python -m greenops.play --seeds 4         # policy comparison on the offline game
-python -m greenops.live --config greenops-exo.json      # live run (or the env vars below)
+python -m greenops.live --probe --out .local/probe     # read-only API checks, creates nothing
+python -m greenops.live --out .local/run1              # live run
 ```
 
-Credentials never go in git: either the run's CLI config `greenops-exo.json` (git-ignored) or
+Credentials never go in git: `.local/greenops.env` (template: `credentials.example.env`), the run's CLI
+config `greenops-exo.json` (both git-ignored), or the environment:
 `EXOSCALE_API_KEY`, `EXOSCALE_API_SECRET`, `GREENOPS_CLOUD_ENDPOINT`, plus `GREENOPS_GRID_ENDPOINT` and
 `GREENOPS_GRID_SECRET`. The loop writes `decisions.jsonl` and `status.jsonl` to `--out`
 (default `/tmp/greenops-run`).
+
+### First practice run
+
+1. Create a practice run on the platform. Leave it READY: nothing should create a VM yet, because the
+   first accepted create starts the clock.
+2. `cp credentials.example.env .local/greenops.env` and fill in the five values from the run page.
+   `.local/` is git-ignored, and `live.py` reads that file automatically.
+3. `python -m greenops.live --probe --out .local/probe` runs read-only checks and creates nothing. It prints
+   whether zones and instance-type ids match the catalog, the run state and speed, the work-status fields
+   and the forecast shape. The raw responses go to `.local/probe/probe.json`; that is run data, so keep it
+   out of git.
+4. `python -m greenops.live --out .local/run1` runs the planner. It creates the first VM while the run is
+   READY, then re-plans every simulated hour until the run ends. Watch the platform dashboard alongside.
+   Practice runs can be paused or change speed, so there is no wall-clock limit unless `--max-wall` is given.
+
+At most two unfinished practice runs per team. Judging is a fresh run at 720×.
 
 ### Container (what the judges run)
 

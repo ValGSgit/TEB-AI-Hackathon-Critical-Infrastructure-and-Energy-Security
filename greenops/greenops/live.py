@@ -1,10 +1,12 @@
 """Run the planner against a live GreenOps simulation run.
 
-    python -m greenops.live --config greenops-exo.json          # or the environment variables below
+    python -m greenops.live --probe --out .local/probe    # read-only checks; creates nothing, clock stays off
+    python -m greenops.live --out .local/run1              # the run itself
 
-Credentials never live in the repo. Either the run's downloaded CLI config (greenops-exo.json,
-git-ignored) or EXOSCALE_API_KEY, EXOSCALE_API_SECRET, GREENOPS_CLOUD_ENDPOINT. The grid API
-always needs GREENOPS_GRID_ENDPOINT and GREENOPS_GRID_SECRET.
+Credentials never live in the repo. They come from the environment, from an env file
+(--env-file, default .local/greenops.env, git-ignored; see credentials.example.env), or from the
+run's downloaded CLI config (greenops-exo.json, git-ignored): EXOSCALE_API_KEY, EXOSCALE_API_SECRET,
+GREENOPS_CLOUD_ENDPOINT, and for the grid API GREENOPS_GRID_ENDPOINT and GREENOPS_GRID_SECRET.
 
 Endpoint checks and the run-only HTTP adapter follow the organizers' starter kit
 (examples/python/static.py, work.py, grid.py): no request may leave this run's URL prefix.
@@ -48,6 +50,18 @@ def check_endpoint(value, reference=None):
         if (u.scheme, u.netloc) != (r.scheme, r.netloc) or parts[1] != r.path.strip("/").split("/")[1]:
             raise ValueError("Discovered endpoint escaped the configured run")
     return value
+
+
+def load_env_file(path: str) -> None:
+    """KEY=VALUE lines into os.environ; variables already set win. Values are never printed."""
+    if not Path(path).is_file():
+        return
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            if v.strip():
+                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
 def read_account(path: str) -> dict:
@@ -212,28 +226,68 @@ def view(raw: dict) -> dict:
     return {"now_h": to_h(vt) if vt else 0.0, "state": raw["state"], "qualification": raw.get("qualification"), "workloads": rows}
 
 
+def probe(live: Live, spec, out: Path) -> dict:
+    """Read-only look at the real API: no create, so the run clock does not start.
+    Writes the raw responses to out/probe.json (run data: keep it out of git) and returns a summary."""
+    raw = {"status": live.status()}
+    zone = next(iter(live.clients))
+    live.api.wait()
+    types = live.clients[zone].list_instance_types()["instance-types"]
+    live.api.wait()
+    raw["templates"] = live.clients[zone].list_templates(visibility="public")["templates"][:3]
+    raw["instance_types"] = {zone: types}
+    area = sorted({s.area for s in spec.sites.values()})[0]
+    for hz in (6, 24):
+        live.api.wait()
+        r = live.http.get(live.grid + "/carbon-intensity/forecast", timeout=20, allow_redirects=False,
+                          params={"zone": area, "horizonHours": hz}, headers={"auth-token": live.grid_secret})
+        raw[f"forecast_{area}_{hz}h"] = {"http": r.status_code, "body": r.json() if r.ok else r.text[:500]}
+    catalog = {p.id for p in spec.profiles if p.available_in(zone)}
+    ids = {t["id"] for t in types}
+    st = raw["status"] or {}
+    summary = {"zones": sorted(live.zones), "zones_match_catalog": sorted(live.zones) == sorted(z.id for z in spec.zones),
+               "run_state": st.get("state"), "speed_multiplier": st.get("speed_multiplier"),
+               "virtual_time": st.get("virtual_time"), "workloads": len(st.get("workloads", [])),
+               "work_status_fields": sorted(st.get("workloads", [{}])[0]) if st.get("workloads") else [],
+               f"instance_types_in_{zone}": len(types), "type_ids_equal_catalog_ids": ids == catalog,
+               "type_fields": sorted(types[0]) if types else [], "templates": [t.get("name") for t in raw["templates"]],
+               "forecast_points": {k: len(v["body"].get("forecast", [])) if isinstance(v["body"], dict) else v["http"]
+                                   for k, v in raw.items() if k.startswith("forecast_")},
+               "forecast_point_fields": next((sorted(v["body"]["forecast"][0]) for k, v in raw.items() if k.startswith("forecast_")
+                                              and isinstance(v["body"], dict) and v["body"].get("forecast")), [])}
+    (out / "probe.json").write_text(json.dumps({"summary": summary, "raw": raw}, indent=1), encoding="utf-8")
+    return summary
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default=os.environ.get("GREENOPS_CONFIG", "greenops-exo.json"))
     ap.add_argument("--out", default=os.environ.get("GREENOPS_OUT", "/tmp/greenops-run"))
     ap.add_argument("--poll", type=float, default=1.0, help="wall seconds between status polls (keep >= 1 against the real API)")
     ap.add_argument("--rate", type=float, default=12, help="cloud+grid requests per second (published limit 20)")
-    ap.add_argument("--max-wall", type=float, default=14 * 60, help="stop after this many wall seconds")
+    ap.add_argument("--max-wall", type=float, default=None,
+                    help="stop after this many wall seconds (default: none; practice runs can be paused or change speed)")
+    ap.add_argument("--env-file", default=os.environ.get("GREENOPS_ENV_FILE", ".local/greenops.env"))
+    ap.add_argument("--probe", action="store_true", help="read-only API checks; creates nothing")
     a = ap.parse_args()
+    load_env_file(a.env_file)
 
     spec = load()
     live = Live(read_account(a.config), os.environ["GREENOPS_GRID_ENDPOINT"], os.environ["GREENOPS_GRID_SECRET"], spec, a.rate)
-    planner = Planner(spec, live.forecast)
-    planner.vm_profile.update({k: v for k, v in live.existing().items() if v in planner.P})
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
+    if a.probe:
+        print(json.dumps(probe(live, spec, out), indent=1))
+        return
+    planner = Planner(spec, live.forecast)
+    planner.vm_profile.update({k: v for k, v in live.existing().items() if v in planner.P})
     log = open(out / "decisions.jsonl", "a", encoding="utf-8")
     samples = open(out / "status.jsonl", "a", encoding="utf-8")
     names, seen, last_sample = {}, 0, -1
-    t_end = time.monotonic() + a.max_wall
+    t_end = None if a.max_wall is None else time.monotonic() + a.max_wall
     W = {w.id: w for w in spec.workloads}
 
-    while time.monotonic() < t_end:
+    while t_end is None or time.monotonic() < t_end:
         raw = live.status()
         if raw is None:
             continue
