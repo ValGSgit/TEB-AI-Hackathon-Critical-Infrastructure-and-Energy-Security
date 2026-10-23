@@ -8,8 +8,8 @@ Written after day 1 (Fri 23 Oct 2026), after two practice runs. Start here on Sa
   run at 360×**. All 15 workloads were delivered on time, the run stayed qualified, every VM was deleted, and the
   platform refused no actions. It is **first on the preliminary leaderboard**. The carbon and score figures are on
   the run dashboard only; real-run values stay out of git (rule 2).
-- Everything is on `main`: PRs #6–#9 (#9: the controller never exits mid-run). Tests: `python -m pytest -q` from
-  `greenops/` (37 tests, about 1–2 min on Windows).
+- Everything is on `main`: PRs #6–#11 (#9: the controller never exits mid-run; #11: Oliver's residency/forecast tests and UI). Tests: `python -m pytest -q` from
+  `greenops/` (70 tests, about 2 min).
 - PR #5 (Oliver, `AGENTS.md` + `docs/context/`) is merged, with `docs/context/` updated for the real-challenge path
   (ADR-0007 to ADR-0010). Keep those docs current in the same commit as each change.
 
@@ -95,6 +95,10 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
    remains; use this run's own `carbon-intensity/history` to improve the estimate beyond 24 h.
 
 ## In parallel (colleague)
+
+Done in #11 (ported from Oliver's `feature/hardening-tasks`, fixed to run on main): `tests/test_residency.py`,
+`tests/test_forecast.py`, and the Control Room's "Data we use", scheduler explainer, residency panel and filterable
+decision feed. Still open: load a real run's `decisions.jsonl` / `status.jsonl` (kept out of git).
 
 - Tests for residency (every workload against all 11 zones, an adversarial create that never reaches the API)
   and for the forecast/baseline accounting.
