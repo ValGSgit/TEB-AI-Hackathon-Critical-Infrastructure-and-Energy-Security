@@ -214,8 +214,9 @@ class Planner:
         known = [self.vm_profile[a["vm_id"]] for a in r["assignments"] if a["vm_id"] in self.vm_profile]
         if known:
             pid = known[0]
-        else:       # best guess: the most efficient suitable profile in that zone
-            ps = [p for p in self.spec.profiles if p.available_in(zone) and suitable(p, w)]
+        else:       # best guess: the most efficient suitable profile in that zone (else anywhere)
+            ps = ([p for p in self.spec.profiles if p.available_in(zone) and suitable(p, w)]
+                  or [p for p in self.spec.profiles if suitable(p, w)])
             pid = min(ps, key=lambda p: p.power_kw / throughput(p, w)).id
             for a in r["assignments"]:
                 self.vm_profile.setdefault(a["vm_id"], pid)

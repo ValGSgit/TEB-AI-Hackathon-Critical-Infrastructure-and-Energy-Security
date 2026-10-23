@@ -47,6 +47,8 @@ class Fake:
         P = {p.id: p for p in fake.spec.profiles}
 
         class H(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"       # keep-alive, like the real API
+
             def log_message(self, *a):
                 pass
 

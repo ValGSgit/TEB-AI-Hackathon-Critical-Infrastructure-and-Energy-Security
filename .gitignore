@@ -9,3 +9,6 @@ sky2.json
 *.bundle
 greenops/ui/dashboard-bare.html
 greenops/globe/earth-bare.html
+greenops-exo.json
+greenops-exo-*.json
+.local/

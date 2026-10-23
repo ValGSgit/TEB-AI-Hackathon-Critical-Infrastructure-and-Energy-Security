@@ -2,6 +2,7 @@
 import pytest
 
 from greenops import guard
+from greenops.model import suitable
 from greenops.play import Naive, run
 from greenops.planner import Planner
 from greenops.spec import load
@@ -47,11 +48,35 @@ def test_forecast_is_the_only_electricity_input(spec):
     assert calls and len(acts) >= 1 and acts[0][0] == "create"
 
 
+def _legal_zone(spec, w):
+    return next(z.id for z in spec.zones if guard.is_allowed(w, z)
+                and any(p.available_in(z.id) and suitable(p, w) for p in spec.profiles))
+
+
 def test_deletes_only_after_delivery(spec):
     p = Planner(spec, lambda a, n: [100.0] * 24)
     rows = [{"id": w.id, "required_work": w.work_units, "completed_work": w.work_units / 2, "lost_work": 0.0,
              "output_ready_at": None, "final_output_delivered": w.id == "w-01-dach-research",
-             "assignments": [{"vm_id": f"vm-{w.id}", "zone": "de-fra-1", "state": "running"}]} for w in spec.workloads]
+             "assignments": [{"vm_id": f"vm-{w.id}", "zone": _legal_zone(spec, w), "state": "running"}]}
+            for w in spec.workloads]
     acts = p.decide({"now_h": 50.0, "workloads": rows})
     deletes = [a for a in acts if a[0] == "delete"]
     assert deletes == [("delete", "vm-w-01-dach-research", "w-01-dach-research")]
+
+
+def test_adopts_vms_it_did_not_create(spec):
+    """After a controller restart the planner continues with the VMs it finds, using their known profile."""
+    w = next(w for w in spec.workloads if w.kind == "cpu")
+    zone = _legal_zone(spec, w)
+    known = next(pr.id for pr in spec.profiles if pr.available_in(zone) and suitable(pr, w))
+    p = Planner(spec, lambda a, n: [100.0] * 24)
+    p.vm_profile["vm-a"] = known
+    rows = [{"id": x.id, "required_work": x.work_units, "completed_work": 0.0, "lost_work": 0.0,
+             "output_ready_at": None, "final_output_delivered": False,
+             "assignments": ([{"vm_id": "vm-a", "zone": zone, "state": "running"},
+                              {"vm_id": "vm-b", "zone": zone, "state": "stopped"}] if x.id == w.id else [])}
+            for x in spec.workloads]
+    p.decide({"now_h": max(w.release_h, 1.0), "workloads": rows})
+    assert p.placements[w.id].zone_id == zone and p.placements[w.id].profile_id == known
+    assert p.placements[w.id].workers == 2
+    assert any(d["action"] == "adopt" and d["workload"] == w.id for d in p.decisions)

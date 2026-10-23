@@ -1,0 +1,2 @@
+# Vendored challenge files are SHA-256 checked: keep them byte-exact on every OS
+greenops/challenge/** -text

@@ -62,14 +62,14 @@ def read_account(path: str) -> dict:
 
 
 class RunOnlyAdapter(requests.adapters.HTTPAdapter):
-    def __init__(self, root):
+    def __init__(self, root, prefix=None):
         self.root = urlparse(root)
+        self.prefix = prefix or self.root.path.rsplit("/v2", 1)[0] + "/"
         super().__init__()
 
     def send(self, request, **kwargs):
         target = urlparse(request.url)
-        prefix = self.root.path.rsplit("/v2", 1)[0] + "/"
-        if (target.scheme, target.netloc) != (self.root.scheme, self.root.netloc) or not target.path.startswith(prefix):
+        if (target.scheme, target.netloc) != (self.root.scheme, self.root.netloc) or not target.path.startswith(self.prefix):
             raise ValueError("Request escaped the configured cloud run")
         return super().send(request, **kwargs)
 
@@ -89,9 +89,9 @@ class Limiter:
 
 # ---------------------------------------------------------------- the three APIs
 class Live:
-    def __init__(self, account: dict, grid_endpoint: str, grid_secret: str, spec):
+    def __init__(self, account: dict, grid_endpoint: str, grid_secret: str, spec, rate: float = 12):
         self.a, self.spec = account, spec
-        self.api = Limiter(12)
+        self.api = Limiter(rate)
         self.zones = {z["name"]: check_endpoint(z["api-endpoint"], account["endpoint"])
                       for z in self._client(account["endpoint"]).list_zones()["zones"]}
         self.clients = {z: self._client(url) for z, url in self.zones.items()}
@@ -100,6 +100,10 @@ class Live:
             raise ValueError("Grid endpoint must belong to this cloud run")
         self.grid, self.grid_secret = grid_endpoint.rstrip("/"), grid_secret
         self.work = account["endpoint"].removesuffix("/cloud/v2") + "/work/v1/status"
+        self.http = requests.Session()          # keep-alive for work + grid, locked to /runs/{id}/
+        guard = RunOnlyAdapter(account["endpoint"], prefix=cloud.path.split("/cloud/")[0] + "/")
+        self.http.mount("http://", guard)
+        self.http.mount("https://", guard)
         self.types, self.template = {}, {}
         self.vm_zone = {}
 
@@ -117,7 +121,7 @@ class Live:
         path = urlparse(self.work).path
         sig = base64.b64encode(hmac.new(self.a["secret"].encode(), "\n".join(["GET " + path, "", "", "", expires]).encode(),
                                         hashlib.sha256).digest()).decode()
-        r = requests.get(self.work, timeout=10, allow_redirects=False, headers={
+        r = self.http.get(self.work, timeout=10, allow_redirects=False, headers={
             "Authorization": f'EXO2-HMAC-SHA256 credential={self.a["key"]},expires={expires},signature={sig}'})
         if r.status_code == 429:
             time.sleep(min(10, max(1, int(r.headers.get("Retry-After", "1")))))
@@ -128,7 +132,7 @@ class Live:
     # ---- grid forecasts of this run only
     def forecast(self, area: str, now_h: float, horizon: int = 24) -> list:
         self.api.wait()
-        r = requests.get(self.grid + "/carbon-intensity/forecast", timeout=20, allow_redirects=False,
+        r = self.http.get(self.grid + "/carbon-intensity/forecast", timeout=20, allow_redirects=False,
                          params={"zone": area, "horizonHours": horizon}, headers={"auth-token": self.grid_secret})
         r.raise_for_status()
         pts = {int(round(to_h(p["datetime"]))): float(p["carbonIntensity"]) for p in r.json()["forecast"]}
@@ -213,11 +217,12 @@ def main():
     ap.add_argument("--config", default=os.environ.get("GREENOPS_CONFIG", "greenops-exo.json"))
     ap.add_argument("--out", default=os.environ.get("GREENOPS_OUT", "/tmp/greenops-run"))
     ap.add_argument("--poll", type=float, default=1.0, help="wall seconds between status polls (keep >= 1 against the real API)")
+    ap.add_argument("--rate", type=float, default=12, help="cloud+grid requests per second (published limit 20)")
     ap.add_argument("--max-wall", type=float, default=14 * 60, help="stop after this many wall seconds")
     a = ap.parse_args()
 
     spec = load()
-    live = Live(read_account(a.config), os.environ["GREENOPS_GRID_ENDPOINT"], os.environ["GREENOPS_GRID_SECRET"], spec)
+    live = Live(read_account(a.config), os.environ["GREENOPS_GRID_ENDPOINT"], os.environ["GREENOPS_GRID_SECRET"], spec, a.rate)
     planner = Planner(spec, live.forecast)
     planner.vm_profile.update({k: v for k, v in live.existing().items() if v in planner.P})
     out = Path(a.out)
