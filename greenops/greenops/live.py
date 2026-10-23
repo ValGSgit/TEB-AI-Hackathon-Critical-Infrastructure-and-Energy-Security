@@ -64,8 +64,28 @@ def load_env_file(path: str) -> None:
                 os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
-def read_account(path: str) -> dict:
-    if Path(path).exists():
+def find_config(path: str | None) -> str | None:
+    """--config, else greenops-exo.json, else the single downloaded greenops-exo-<run>.json, here or one level up."""
+    if path:
+        return path
+    for d in (Path.cwd(), Path.cwd().parent):
+        if (d / "greenops-exo.json").is_file():
+            return str(d / "greenops-exo.json")
+        found = sorted(d.glob("greenops-exo-*.json"))
+        if len(found) > 1:
+            raise ValueError(f"several run configs in {d}; pick one with --config")
+        if found:
+            return str(found[0])
+    return None
+
+
+def grid_endpoint(cloud_endpoint: str) -> str:
+    """The run's grid URL sits next to its cloud URL: /runs/{id}/grid/v4 on the same host."""
+    return os.environ.get("GREENOPS_GRID_ENDPOINT") or cloud_endpoint.split("/cloud/")[0] + "/grid/v4"
+
+
+def read_account(path: str | None) -> dict:
+    if path and Path(path).exists():
         config = json.loads(Path(path).read_text())
         account = next(a for a in config["accounts"] if a["name"] == config["defaultaccount"])
     else:
@@ -237,7 +257,7 @@ def probe(live: Live, spec, out: Path) -> dict:
     raw["templates"] = live.clients[zone].list_templates(visibility="public")["templates"][:3]
     raw["instance_types"] = {zone: types}
     area = sorted({s.area for s in spec.sites.values()})[0]
-    for hz in (6, 24):
+    for hz in ((6, 24) if live.grid_secret else ()):
         live.api.wait()
         r = live.http.get(live.grid + "/carbon-intensity/forecast", timeout=20, allow_redirects=False,
                           params={"zone": area, "horizonHours": hz}, headers={"auth-token": live.grid_secret})
@@ -255,13 +275,16 @@ def probe(live: Live, spec, out: Path) -> dict:
                                    for k, v in raw.items() if k.startswith("forecast_")},
                "forecast_point_fields": next((sorted(v["body"]["forecast"][0]) for k, v in raw.items() if k.startswith("forecast_")
                                               and isinstance(v["body"], dict) and v["body"].get("forecast")), [])}
+    if not live.grid_secret:
+        summary["forecast_points"] = "skipped: GREENOPS_GRID_SECRET not set"
     (out / "probe.json").write_text(json.dumps({"summary": summary, "raw": raw}, indent=1), encoding="utf-8")
     return summary
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--config", default=os.environ.get("GREENOPS_CONFIG", "greenops-exo.json"))
+    ap.add_argument("--config", default=os.environ.get("GREENOPS_CONFIG"),
+                    help="run CLI config (default: greenops-exo.json or greenops-exo-<run>.json here or one level up)")
     ap.add_argument("--out", default=os.environ.get("GREENOPS_OUT", "/tmp/greenops-run"))
     ap.add_argument("--poll", type=float, default=1.0, help="wall seconds between status polls (keep >= 1 against the real API)")
     ap.add_argument("--rate", type=float, default=12, help="cloud+grid requests per second (published limit 20)")
@@ -273,7 +296,11 @@ def main():
     load_env_file(a.env_file)
 
     spec = load()
-    live = Live(read_account(a.config), os.environ["GREENOPS_GRID_ENDPOINT"], os.environ["GREENOPS_GRID_SECRET"], spec, a.rate)
+    account = read_account(find_config(a.config))
+    secret = os.environ.get("GREENOPS_GRID_SECRET", "")
+    if not secret and not a.probe:
+        raise ValueError("GREENOPS_GRID_SECRET is missing (portal: API credentials; put it in .local/greenops.env)")
+    live = Live(account, grid_endpoint(account["endpoint"]), secret, spec, a.rate)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     if a.probe:

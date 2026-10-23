@@ -55,8 +55,10 @@ config `greenops-exo.json` (both git-ignored), or the environment:
 
 1. Create a practice run on the platform. Leave it READY: nothing should create a VM yet, because the
    first accepted create starts the clock.
-2. `cp credentials.example.env .local/greenops.env` and fill in the five values from the run page.
-   `.local/` is git-ignored, and `live.py` reads that file automatically.
+2. Put the run's downloaded `greenops-exo-<run-id>.json` in the repo root (git-ignored; found
+   automatically). Then `cp credentials.example.env .local/greenops.env` and set `GREENOPS_GRID_SECRET`, the
+   separate grid secret from the portal's API credentials page. The grid URL is derived from the cloud
+   endpoint. `.local/` is git-ignored, and `live.py` reads that file automatically.
 3. `python -m greenops.live --probe --out .local/probe` runs read-only checks and creates nothing. It prints
    whether zones and instance-type ids match the catalog, the run state and speed, the work-status fields
    and the forecast shape. The raw responses go to `.local/probe/probe.json`; that is run data, so keep it
