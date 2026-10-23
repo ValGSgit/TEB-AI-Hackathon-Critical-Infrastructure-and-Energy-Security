@@ -1,10 +1,12 @@
 """Run the planner against a live GreenOps simulation run.
 
-    python -m greenops.live --config greenops-exo.json          # or the environment variables below
+    python -m greenops.live --probe --out .local/probe    # read-only checks; creates nothing, clock stays off
+    python -m greenops.live --out .local/run1              # the run itself
 
-Credentials never live in the repo. Either the run's downloaded CLI config (greenops-exo.json,
-git-ignored) or EXOSCALE_API_KEY, EXOSCALE_API_SECRET, GREENOPS_CLOUD_ENDPOINT. The grid API
-always needs GREENOPS_GRID_ENDPOINT and GREENOPS_GRID_SECRET.
+Credentials never live in the repo. They come from the environment, from an env file
+(--env-file, default .local/greenops.env, git-ignored; see credentials.example.env), or from the
+run's downloaded CLI config (greenops-exo.json, git-ignored): EXOSCALE_API_KEY, EXOSCALE_API_SECRET,
+GREENOPS_CLOUD_ENDPOINT, and for the grid API GREENOPS_GRID_ENDPOINT and GREENOPS_GRID_SECRET.
 
 Endpoint checks and the run-only HTTP adapter follow the organizers' starter kit
 (examples/python/static.py, work.py, grid.py): no request may leave this run's URL prefix.
@@ -50,8 +52,46 @@ def check_endpoint(value, reference=None):
     return value
 
 
-def read_account(path: str) -> dict:
-    if Path(path).exists():
+ENV_ALIASES = {"API_KEY": "EXOSCALE_API_KEY", "API_SECRET": "EXOSCALE_API_SECRET", "CLOUD_ENDPOINT": "GREENOPS_CLOUD_ENDPOINT",
+               "GRID_ENDPOINT": "GREENOPS_GRID_ENDPOINT", "GRID_SECRET": "GREENOPS_GRID_SECRET"}
+ENV_FILES = (".local/greenops.env", ".env", "../.env")
+
+
+def load_env_file(path: str) -> None:
+    """KEY=VALUE lines into os.environ (short names like GRID_SECRET accepted); variables already set win.
+    Values are never printed."""
+    if not Path(path).is_file():
+        return
+    for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip().removeprefix("export ")
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            if v.strip():
+                os.environ.setdefault(ENV_ALIASES.get(k.strip(), k.strip()), v.strip().strip('"').strip("'"))
+
+
+def find_config(path: str | None) -> str | None:
+    """--config, else greenops-exo.json, else the single downloaded greenops-exo-<run>.json, here or one level up."""
+    if path:
+        return path
+    for d in (Path.cwd(), Path.cwd().parent):
+        if (d / "greenops-exo.json").is_file():
+            return str(d / "greenops-exo.json")
+        found = sorted(d.glob("greenops-exo-*.json"))
+        if len(found) > 1:
+            raise ValueError(f"several run configs in {d}; pick one with --config")
+        if found:
+            return str(found[0])
+    return None
+
+
+def grid_endpoint(cloud_endpoint: str) -> str:
+    """The run's grid URL sits next to its cloud URL: /runs/{id}/grid/v4 on the same host."""
+    return os.environ.get("GREENOPS_GRID_ENDPOINT") or cloud_endpoint.split("/cloud/")[0] + "/grid/v4"
+
+
+def read_account(path: str | None) -> dict:
+    if path and Path(path).exists():
         config = json.loads(Path(path).read_text())
         account = next(a for a in config["accounts"] if a["name"] == config["defaultaccount"])
     else:
@@ -212,29 +252,105 @@ def view(raw: dict) -> dict:
     return {"now_h": to_h(vt) if vt else 0.0, "state": raw["state"], "qualification": raw.get("qualification"), "workloads": rows}
 
 
+def probe(live: Live, spec, out: Path) -> dict:
+    """Read-only look at the real API: no create, so the run clock does not start.
+    Writes the raw responses to out/probe.json (run data: keep it out of git) and returns a summary."""
+    raw = {"status": live.status()}
+    zone = next(iter(live.clients))
+    live.api.wait()
+    types = live.clients[zone].list_instance_types()["instance-types"]
+    live.api.wait()
+    raw["templates"] = live.clients[zone].list_templates(visibility="public")["templates"][:3]
+    raw["instance_types"] = {zone: types}
+    area = sorted({s.area for s in spec.sites.values()})[0]
+    for hz in ((6, 24) if live.grid_secret else ()):
+        live.api.wait()
+        r = live.http.get(live.grid + "/carbon-intensity/forecast", timeout=20, allow_redirects=False,
+                          params={"zone": area, "horizonHours": hz}, headers={"auth-token": live.grid_secret})
+        raw[f"forecast_{area}_{hz}h"] = {"http": r.status_code, "body": r.json() if r.ok else r.text[:500]}
+    catalog = {p.id for p in spec.profiles if p.available_in(zone)}
+    ids = {t["id"] for t in types}
+    st = raw["status"] or {}
+    summary = {"zones": sorted(live.zones), "zones_match_catalog": sorted(live.zones) == sorted(z.id for z in spec.zones),
+               "run_state": st.get("state"), "speed_multiplier": st.get("speed_multiplier"),
+               "virtual_time": st.get("virtual_time"), "workloads": len(st.get("workloads", [])),
+               "work_status_fields": sorted(st.get("workloads", [{}])[0]) if st.get("workloads") else [],
+               f"instance_types_in_{zone}": len(types), "type_ids_equal_catalog_ids": ids == catalog,
+               "type_fields": sorted(types[0]) if types else [], "templates": [t.get("name") for t in raw["templates"]],
+               "forecast_points": {k: len(v["body"].get("forecast", [])) if isinstance(v["body"], dict) else v["http"]
+                                   for k, v in raw.items() if k.startswith("forecast_")},
+               "forecast_point_fields": next((sorted(v["body"]["forecast"][0]) for k, v in raw.items() if k.startswith("forecast_")
+                                              and isinstance(v["body"], dict) and v["body"].get("forecast")), [])}
+    if not live.grid_secret:
+        summary["forecast_points"] = "skipped: GREENOPS_GRID_SECRET not set"
+    elif raw["status"]:
+        summary["plan"] = dry_plan(spec, live.forecast, view(raw["status"]))
+    (out / "probe.json").write_text(json.dumps({"summary": summary, "raw": raw}, indent=1), encoding="utf-8")
+    return summary
+
+
+def dry_plan(spec, forecast, st: dict) -> dict:
+    """The plan the planner would make now, from this run's forecasts, with every zone residency-checked.
+    No cloud call is made: nothing is created."""
+    pl = Planner(spec, forecast)
+    first = pl.bootstrap(st)
+    zones = {z.id: z for z in spec.zones}
+    rows, illegal = [], []
+    for wid, slot in sorted(pl.plan.items(), key=lambda kv: kv[1].start):
+        w, z = pl.W[wid], zones[slot.placement.zone_id]
+        try:
+            check_placement(w, z)
+        except ResidencyViolation:
+            illegal.append(wid)
+        rows.append(f"{wid:24s} {z.id:9s} ({z.country}; allowed {','.join(sorted(w.allowed_countries))}) "
+                    f"{spec.pinfo[slot.placement.profile_id].family}.{spec.pinfo[slot.placement.profile_id].size} "
+                    f"x{slot.placement.workers} block {slot.start}-{slot.end}h run {len(slot.run)}h")
+    return {"planned": f"{len(pl.plan)}/{len(spec.workloads)}", "all_legal": not illegal, "illegal": illegal,
+            "first_create": f"{first[0][1]} in {first[0][2]} x{len(first)}" if first else None, "slots": rows}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--config", default=os.environ.get("GREENOPS_CONFIG", "greenops-exo.json"))
+    ap.add_argument("--config", default=os.environ.get("GREENOPS_CONFIG"),
+                    help="run CLI config (default: greenops-exo.json or greenops-exo-<run>.json here or one level up)")
     ap.add_argument("--out", default=os.environ.get("GREENOPS_OUT", "/tmp/greenops-run"))
     ap.add_argument("--poll", type=float, default=1.0, help="wall seconds between status polls (keep >= 1 against the real API)")
     ap.add_argument("--rate", type=float, default=12, help="cloud+grid requests per second (published limit 20)")
-    ap.add_argument("--max-wall", type=float, default=14 * 60, help="stop after this many wall seconds")
+    ap.add_argument("--max-wall", type=float, default=None,
+                    help="stop after this many wall seconds (default: none; practice runs can be paused or change speed)")
+    ap.add_argument("--env-file", default=os.environ.get("GREENOPS_ENV_FILE"),
+                    help="credentials file (default: .local/greenops.env, then .env here or one level up)")
+    ap.add_argument("--probe", action="store_true", help="read-only API checks; creates nothing")
     a = ap.parse_args()
+    for f in ([a.env_file] if a.env_file else ENV_FILES):
+        load_env_file(f)
 
     spec = load()
-    live = Live(read_account(a.config), os.environ["GREENOPS_GRID_ENDPOINT"], os.environ["GREENOPS_GRID_SECRET"], spec, a.rate)
-    planner = Planner(spec, live.forecast)
-    planner.vm_profile.update({k: v for k, v in live.existing().items() if v in planner.P})
+    account = read_account(find_config(a.config))
+    secret = os.environ.get("GREENOPS_GRID_SECRET", "")
+    if not secret and not a.probe:
+        raise ValueError("GREENOPS_GRID_SECRET is missing (portal: API credentials; put it in .local/greenops.env)")
+    live = Live(account, grid_endpoint(account["endpoint"]), secret, spec, a.rate)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
+    if a.probe:
+        print(json.dumps(probe(live, spec, out), indent=1))
+        return
+    planner = Planner(spec, live.forecast)
+    planner.vm_profile.update({k: v for k, v in live.existing().items() if v in planner.P})
     log = open(out / "decisions.jsonl", "a", encoding="utf-8")
     samples = open(out / "status.jsonl", "a", encoding="utf-8")
     names, seen, last_sample = {}, 0, -1
-    t_end = time.monotonic() + a.max_wall
+    t_end = None if a.max_wall is None else time.monotonic() + a.max_wall
     W = {w.id: w for w in spec.workloads}
 
-    while time.monotonic() < t_end:
-        raw = live.status()
+    while t_end is None or time.monotonic() < t_end:
+        try:
+            raw = live.status()
+        except requests.RequestException as e:      # transient: keep managing the VMs, never exit mid-run
+            print(json.dumps({"warning": f"status failed: {str(e)[:200]}"}))
+            time.sleep(2)
+            continue
         if raw is None:
             continue
         st = view(raw)
@@ -246,7 +362,12 @@ def main():
             samples.flush()
             last_sample = int(st["now_h"])
         where = {a["vm_id"]: a["zone"] for r in st["workloads"] for a in r["assignments"]}
-        actions = planner.bootstrap(st) if st["state"] == "READY" else planner.decide(st)
+        try:
+            actions = planner.bootstrap(st) if st["state"] == "READY" else planner.decide(st)
+        except (requests.RequestException, ValueError) as e:     # e.g. a forecast fetch failed: re-plan next poll
+            print(json.dumps({"warning": f"planning failed: {str(e)[:200]}"}))
+            time.sleep(1)
+            continue
         for act in actions:
             try:
                 if act[0] == "create":
