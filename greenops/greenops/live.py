@@ -1,0 +1,274 @@
+"""Run the planner against a live GreenOps simulation run.
+
+    python -m greenops.live --config greenops-exo.json          # or the environment variables below
+
+Credentials never live in the repo. Either the run's downloaded CLI config (greenops-exo.json,
+git-ignored) or EXOSCALE_API_KEY, EXOSCALE_API_SECRET, GREENOPS_CLOUD_ENDPOINT. The grid API
+always needs GREENOPS_GRID_ENDPOINT and GREENOPS_GRID_SECRET.
+
+Endpoint checks and the run-only HTTP adapter follow the organizers' starter kit
+(examples/python/static.py, work.py, grid.py): no request may leave this run's URL prefix.
+The process writes its decision log and status samples to --out (default /tmp/greenops-run).
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import hashlib
+import hmac
+import json
+import os
+import sys
+import time
+from pathlib import Path
+from urllib.parse import urlparse
+
+import requests
+from exoscale.api.v2 import Client
+
+from .guard import ResidencyViolation, check_placement
+from .planner import Planner
+from .spec import load, to_h
+
+TERMINAL = {"COMPLETED", "INVALIDATED", "UNAVAILABLE"}
+
+
+# ---------------------------------------------------------------- account and run-scoped HTTP
+def check_endpoint(value, reference=None):
+    u = urlparse(value)
+    if u.scheme not in {"http", "https"} or not u.hostname or u.username or u.password or u.query or u.fragment:
+        raise ValueError("Expected a challenge run URL")
+    parts = u.path.strip("/").split("/")
+    if len(parts) not in {4, 5} or parts[0] != "runs" or parts[2] != "cloud" or parts[-1] != "v2":
+        raise ValueError("Cloud endpoint must be /runs/{id}/cloud[/zone]/v2")
+    if u.hostname == "exoscale.com" or u.hostname.endswith(".exoscale.com"):
+        raise ValueError("Use challenge endpoints only")
+    if reference:
+        r = urlparse(reference)
+        if (u.scheme, u.netloc) != (r.scheme, r.netloc) or parts[1] != r.path.strip("/").split("/")[1]:
+            raise ValueError("Discovered endpoint escaped the configured run")
+    return value
+
+
+def read_account(path: str) -> dict:
+    if Path(path).exists():
+        config = json.loads(Path(path).read_text())
+        account = next(a for a in config["accounts"] if a["name"] == config["defaultaccount"])
+    else:
+        account = {"key": os.environ["EXOSCALE_API_KEY"], "secret": os.environ["EXOSCALE_API_SECRET"],
+                   "endpoint": os.environ["GREENOPS_CLOUD_ENDPOINT"]}
+    check_endpoint(account["endpoint"])
+    return account
+
+
+class RunOnlyAdapter(requests.adapters.HTTPAdapter):
+    def __init__(self, root):
+        self.root = urlparse(root)
+        super().__init__()
+
+    def send(self, request, **kwargs):
+        target = urlparse(request.url)
+        prefix = self.root.path.rsplit("/v2", 1)[0] + "/"
+        if (target.scheme, target.netloc) != (self.root.scheme, self.root.netloc) or not target.path.startswith(prefix):
+            raise ValueError("Request escaped the configured cloud run")
+        return super().send(request, **kwargs)
+
+
+class Limiter:
+    """Client-side pacing under the published limits (cloud+grid 20/s, work 5/s)."""
+
+    def __init__(self, per_s: float):
+        self.gap, self.next = 1.0 / per_s, 0.0
+
+    def wait(self):
+        now = time.monotonic()
+        if now < self.next:
+            time.sleep(self.next - now)
+        self.next = max(now, self.next) + self.gap
+
+
+# ---------------------------------------------------------------- the three APIs
+class Live:
+    def __init__(self, account: dict, grid_endpoint: str, grid_secret: str, spec):
+        self.a, self.spec = account, spec
+        self.api = Limiter(12)
+        self.zones = {z["name"]: check_endpoint(z["api-endpoint"], account["endpoint"])
+                      for z in self._client(account["endpoint"]).list_zones()["zones"]}
+        self.clients = {z: self._client(url) for z, url in self.zones.items()}
+        cloud, grid = urlparse(account["endpoint"]), urlparse(grid_endpoint.rstrip("/"))
+        if (grid.scheme, grid.netloc, grid.path) != (cloud.scheme, cloud.netloc, cloud.path.split("/cloud/")[0] + "/grid/v4"):
+            raise ValueError("Grid endpoint must belong to this cloud run")
+        self.grid, self.grid_secret = grid_endpoint.rstrip("/"), grid_secret
+        self.work = account["endpoint"].removesuffix("/cloud/v2") + "/work/v1/status"
+        self.types, self.template = {}, {}
+        self.vm_zone = {}
+
+    def _client(self, url):
+        c = Client(self.a["key"], self.a["secret"], url=check_endpoint(url, self.a["endpoint"]))
+        guard = RunOnlyAdapter(self.a["endpoint"])
+        c.http_client.mount("http://", guard)
+        c.http_client.mount("https://", guard)
+        c.http_client.max_redirects = 0
+        return c
+
+    # ---- work status (EXO2 HMAC over the full prefixed path)
+    def status(self):
+        expires = str(int(time.time()) + 60)
+        path = urlparse(self.work).path
+        sig = base64.b64encode(hmac.new(self.a["secret"].encode(), "\n".join(["GET " + path, "", "", "", expires]).encode(),
+                                        hashlib.sha256).digest()).decode()
+        r = requests.get(self.work, timeout=10, allow_redirects=False, headers={
+            "Authorization": f'EXO2-HMAC-SHA256 credential={self.a["key"]},expires={expires},signature={sig}'})
+        if r.status_code == 429:
+            time.sleep(min(10, max(1, int(r.headers.get("Retry-After", "1")))))
+            return None
+        r.raise_for_status()
+        return r.json()
+
+    # ---- grid forecasts of this run only
+    def forecast(self, area: str, now_h: float, horizon: int = 24) -> list:
+        self.api.wait()
+        r = requests.get(self.grid + "/carbon-intensity/forecast", timeout=20, allow_redirects=False,
+                         params={"zone": area, "horizonHours": horizon}, headers={"auth-token": self.grid_secret})
+        r.raise_for_status()
+        pts = {int(round(to_h(p["datetime"]))): float(p["carbonIntensity"]) for p in r.json()["forecast"]}
+        if not pts:
+            raise ValueError(f"empty forecast for {area}")
+        vals = []
+        for h in range(int(now_h), int(now_h) + horizon):     # align to whole hours from now; fill gaps
+            vals.append(pts[h] if h in pts else (vals[-1] if vals else pts[min(pts, key=lambda k: abs(k - h))]))
+        return vals
+
+    # ---- cloud actions
+    def _type_id(self, zone, profile_id):
+        info = self.spec.pinfo[profile_id]
+        key = (zone, profile_id)
+        if key not in self.types:
+            self.api.wait()
+            ts = self.clients[zone].list_instance_types()["instance-types"]
+            hit = [t for t in ts if t["id"] == profile_id] or [t for t in ts if t.get("family") == info.family and t.get("size") == info.size]
+            if not hit:
+                raise ValueError(f"no instance type {info.family}.{info.size} in {zone}")
+            self.types[key] = hit[0]["id"]
+        return self.types[key]
+
+    def _template(self, zone):
+        if zone not in self.template:
+            self.api.wait()
+            self.template[zone] = self.clients[zone].list_templates(visibility="public")["templates"][0]["id"]
+        return self.template[zone]
+
+    def create(self, workload, zone, profile_id, name) -> str:
+        check_placement(workload, next(z for z in self.spec.zones if z.id == zone))   # last line of defence
+        c = self.clients[zone]
+        self.api.wait()
+        same = [v for v in c.list_instances()["instances"] if v["name"] == name]   # idempotent after a lost reply
+        if len(same) > 1:
+            raise ValueError(f"duplicate VM name {name}; inspect the run before retrying")
+        if same:
+            vm_id = same[0]["id"]
+        else:
+            binding = {"greenops": {"schema_version": "1.0", "workload_id": workload.id}}
+            self.api.wait()
+            op = c.create_instance(name=name, instance_type={"id": self._type_id(zone, profile_id)},
+                                   template={"id": self._template(zone)}, disk_size=10,
+                                   user_data=base64.b64encode(json.dumps(binding).encode()).decode())
+            vm_id = op["reference"]["id"]
+        self.vm_zone[vm_id] = zone
+        return vm_id
+
+    def existing(self) -> dict:
+        """vm id -> instance-type id for VMs already in this run (after a controller restart)."""
+        out = {}
+        for zone, c in self.clients.items():
+            self.api.wait()
+            for v in c.list_instances().get("instances", []):
+                t = v.get("instance-type") or {}
+                if t.get("id"):
+                    out[v["id"]] = t["id"]
+                    self.vm_zone[v["id"]] = zone
+        return out
+
+    def act(self, kind, vm_id, zone):
+        c = self.clients[zone or self.vm_zone[vm_id]]
+        self.api.wait()
+        {"stop": c.stop_instance, "start": c.start_instance, "delete": c.delete_instance}[kind](id=vm_id)
+
+
+# ---------------------------------------------------------------- control loop
+def view(raw: dict) -> dict:
+    """Work-status response -> the planner's view (same shape as game.Game.status())."""
+    vt = raw.get("virtual_time")
+    rows = []
+    for w in raw["workloads"]:
+        rows.append({"id": w["id"], "required_work": float(w["required_work"]), "completed_work": float(w["completed_work"]),
+                     "lost_work": float(w.get("lost_work") or 0), "output_ready_at": w.get("output_ready_at"),
+                     "final_output_delivered": bool(w["final_output_delivered"]),
+                     "assignments": [{"vm_id": a["vm_id"], "zone": a["zone"], "state": a["state"]} for a in w["assignments"]]})
+    return {"now_h": to_h(vt) if vt else 0.0, "state": raw["state"], "qualification": raw.get("qualification"), "workloads": rows}
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--config", default=os.environ.get("GREENOPS_CONFIG", "greenops-exo.json"))
+    ap.add_argument("--out", default=os.environ.get("GREENOPS_OUT", "/tmp/greenops-run"))
+    ap.add_argument("--poll", type=float, default=1.0, help="wall seconds between status polls (keep >= 1 against the real API)")
+    ap.add_argument("--max-wall", type=float, default=14 * 60, help="stop after this many wall seconds")
+    a = ap.parse_args()
+
+    spec = load()
+    live = Live(read_account(a.config), os.environ["GREENOPS_GRID_ENDPOINT"], os.environ["GREENOPS_GRID_SECRET"], spec)
+    planner = Planner(spec, live.forecast)
+    planner.vm_profile.update({k: v for k, v in live.existing().items() if v in planner.P})
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    log = open(out / "decisions.jsonl", "a", encoding="utf-8")
+    samples = open(out / "status.jsonl", "a", encoding="utf-8")
+    names, seen, last_sample = {}, 0, -1
+    t_end = time.monotonic() + a.max_wall
+    W = {w.id: w for w in spec.workloads}
+
+    while time.monotonic() < t_end:
+        raw = live.status()
+        if raw is None:
+            continue
+        st = view(raw)
+        if st["qualification"] == "DISQUALIFIED" or st["state"] in TERMINAL:
+            print(json.dumps({"end": st["state"], "qualification": st["qualification"], "t": st["now_h"]}))
+            break
+        if int(st["now_h"]) != last_sample:
+            samples.write(json.dumps(raw) + "\n")
+            samples.flush()
+            last_sample = int(st["now_h"])
+        where = {a["vm_id"]: a["zone"] for r in st["workloads"] for a in r["assignments"]}
+        actions = planner.bootstrap(st) if st["state"] == "READY" else planner.decide(st)
+        for act in actions:
+            try:
+                if act[0] == "create":
+                    _, wid, zone, prof, i = act
+                    n = names[(wid, i)] = names.get((wid, i), -1) + 1
+                    vm = live.create(W[wid], zone, prof, f"gops-{wid}-{i}-{n}")
+                    planner.vm_profile[vm] = prof
+                else:
+                    live.act(act[0], act[1], where.get(act[1]))
+            except ResidencyViolation:
+                raise                                   # never happens by construction; stop hard if it does
+            except Exception as e:                      # quota, transient API errors: re-planned next tick
+                planner.rejected(st["now_h"], act, str(e)[:200])
+        for d in planner.decisions[seen:]:
+            log.write(json.dumps(d) + "\n")
+            print(json.dumps(d))
+        seen = len(planner.decisions)
+        log.flush()
+        if st["now_h"] >= spec.horizon_h - 1e-6 or (all(r["final_output_delivered"] and not r["assignments"]
+                                                         for r in st["workloads"])):
+            print(json.dumps({"end": "all delivered and cleaned up", "t": st["now_h"]}))
+            break
+        time.sleep(max(0.0, a.poll))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (ValueError, KeyError, requests.RequestException) as e:
+        sys.exit(f"greenops.live failed: {e}")
