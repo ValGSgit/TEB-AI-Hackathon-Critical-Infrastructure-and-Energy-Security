@@ -350,13 +350,13 @@ def main():
     while t_end is None or time.monotonic() < t_end:
         try:
             raw = live.status()
-        except requests.RequestException as e:      # transient: keep managing the VMs, never exit mid-run
-            print(json.dumps({"warning": f"status failed: {str(e)[:200]}"}))
+            if raw is None:
+                continue
+            st = view(raw)
+        except Exception as e:                      # any surprise: keep managing the VMs, never exit mid-run
+            print(json.dumps({"warning": f"status failed: {type(e).__name__}: {str(e)[:200]}"}))
             time.sleep(2)
             continue
-        if raw is None:
-            continue
-        st = view(raw)
         if st["qualification"] == "DISQUALIFIED" or st["state"] in TERMINAL:
             print(json.dumps({"end": st["state"], "qualification": st["qualification"], "t": st["now_h"]}))
             break
@@ -367,8 +367,10 @@ def main():
         where = {a["vm_id"]: a["zone"] for r in st["workloads"] for a in r["assignments"]}
         try:
             actions = planner.bootstrap(st) if st["state"] == "READY" else planner.decide(st)
-        except (requests.RequestException, ValueError) as e:     # e.g. a forecast fetch failed: re-plan next poll
-            print(json.dumps({"warning": f"planning failed: {str(e)[:200]}"}))
+        except ResidencyViolation:
+            raise                                   # never happens by construction; stop hard if it does
+        except Exception as e:                      # e.g. a forecast fetch failed: re-plan next poll
+            print(json.dumps({"warning": f"planning failed: {type(e).__name__}: {str(e)[:200]}"}))
             time.sleep(1)
             continue
         for act in actions:
