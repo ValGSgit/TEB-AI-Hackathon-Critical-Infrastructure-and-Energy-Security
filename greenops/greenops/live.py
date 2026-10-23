@@ -324,6 +324,9 @@ def main():
     a = ap.parse_args()
     for f in ([a.env_file] if a.env_file else ENV_FILES):
         load_env_file(f)
+    for short, full in ENV_ALIASES.items():         # e.g. docker run --env-file .env with short names
+        if os.environ.get(short) and not os.environ.get(full):
+            os.environ[full] = os.environ[short]
 
     spec = load()
     account = read_account(find_config(a.config))
