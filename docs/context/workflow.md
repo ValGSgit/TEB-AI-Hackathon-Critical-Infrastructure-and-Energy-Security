@@ -38,6 +38,12 @@ docker build -t greenops greenops                       # judged image (Python 3
 Credentials: `greenops-exo.json` in the repo root, plus the grid secret in `.env` or `greenops/.local/greenops.env`
 (template: `greenops/credentials.example.env`). All git-ignored. Real-run carbon values stay out of git.
 
+## Project site (GitHub Pages)
+
+`python site/build.py` writes `site/dist/` (git-ignored); open `site/dist/index.html`. On every push to `main`,
+`.github/workflows/pages.yml` builds it into `_site` and deploys it. One-time setup in the repo settings:
+Pages → Source: GitHub Actions. Edit `site/template.html`, never the built page. Only synthetic data goes in.
+
 ## CI (`.github/workflows/tests.yml`)
 
 - `greenops`: `pip install -r requirements-dev.txt`, `pytest -q`, `compare.py 5`, `greenops.play --seeds 2`.

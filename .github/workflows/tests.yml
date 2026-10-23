@@ -38,3 +38,4 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: python -m greenops.experiments --seeds 4 --out /tmp/exp.json
       - run: python -m greenops.export --seed 3 && python ui/build.py && python globe/build.py
+      - run: python ../site/build.py --out /tmp/site

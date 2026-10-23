@@ -9,6 +9,9 @@ TEB AI Hackathon: Critical Infrastructure & Energy Security · weXelerate, Vienn
 > (offline benchmark, 8 synthetic grids, 15/15 delivered on time in every run).
 > Two practice runs on the live platform: 15/15 on time, qualified, every VM cleaned up, no refused actions.
 
+**Project site: [valgsgit.github.io/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security](https://valgsgit.github.io/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security/)**, with an interactive 120-hour replay, the
+planner explained, results, the Control Room and the Earth view.
+
 ---
 
 ## Contents
@@ -223,6 +226,7 @@ flowchart TB
 │   ├── tests/                    70 tests, incl. fake_platform.py
 │   ├── ui/                       GreenOps Control Room (decision explainer)
 │   └── globe/                    GreenOps Earth (3D replay on the map)
+├── site/                         project site for GitHub Pages (template + build from the offline game)
 └── forcegeo/                     backup project for the security tracks (section 10)
 ```
 
@@ -270,6 +274,11 @@ On Windows use `PYTHONUTF8=1`; the Git Bash notes are in [`greenops/NEXT_STEPS.m
 - [ ] CI green on the submitted commit
 
 ## 9. Presentation assets
+
+- **Project site** (`site/`, published to [GitHub Pages](https://valgsgit.github.io/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security/) by `.github/workflows/pages.yml`): a replay of a
+  full run where every running hour is coloured by the carbon of its electricity (naive vs our planner), the
+  quota catch, an interactive block example, the benchmark and the rules. Built from the offline game on
+  synthetic grids: `python site/build.py` → `site/dist/index.html`.
 
 - **GreenOps Control Room** (`greenops/ui/`): our decision explainer, separate from the platform dashboard.
   It shows the data we use, how blocks and run hours work, the allocation timeline with stopped phases, the

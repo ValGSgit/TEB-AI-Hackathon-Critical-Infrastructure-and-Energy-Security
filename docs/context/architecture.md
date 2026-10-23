@@ -11,6 +11,7 @@ during the event lives here.
 | `docs/` | `challenge-choice-and-prebuild.md` (organizer challenges, decision, pre-build status, Friday checklist) |
 | `greenops/` | Primary track: Exoscale Carbon-Aware Cloud Orchestration |
 | `forcegeo/` | Security track (backup): ForceGeo location-trust and Galileo integrity demos |
+| `site/` | Project site: `template.html` + `build.py` (replay data from the offline game on synthetic grids); copies the Control Room and Earth view in. Published by `.github/workflows/pages.yml` |
 | `.github/workflows/tests.yml` | CI: greenops tests, galileo-live build, greenops export/UI/globe build |
 | `AGENTS.md`, `CLAUDE.md`, `.gitignore` | Agent instructions (CLAUDE.md imports AGENTS.md) and ignore rules |
 
