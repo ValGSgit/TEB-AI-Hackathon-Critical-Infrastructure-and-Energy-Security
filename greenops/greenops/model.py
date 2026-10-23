@@ -57,6 +57,11 @@ class Workload:
     min_gpu_mem_gb: float = 0.0
     gpu_families: frozenset = frozenset()  # empty = any GPU family
     ref_energy_kwh: float = 1.0       # fixed reference energy used to weight the score
+    # real challenge fields (spec.py); defaults keep the synthetic practice scenarios working
+    profile_ids: frozenset = frozenset()   # allowed instance-type ids; empty = any suitable
+    sync_overhead: float = 0.0        # throughput / (1 + sync_overhead * (workers - 1))
+    restart_from_zero: bool = False   # deleting a worker loses all of its unfinished work
+    title: str = ""
 
 
 @dataclass(frozen=True)
@@ -96,6 +101,8 @@ class RunState:
 
 
 def suitable(profile: Profile, w: Workload) -> bool:
+    if w.profile_ids and profile.id not in w.profile_ids:
+        return False
     if w.kind == "gpu":
         if not profile.is_gpu or profile.gpu_throughput <= 0:
             return False
@@ -111,6 +118,11 @@ def suitable(profile: Profile, w: Workload) -> bool:
 
 def throughput(profile: Profile, w: Workload) -> float:
     return profile.gpu_throughput if w.kind == "gpu" else profile.cpu_throughput
+
+
+def sync_throughput(single: float, workers: int, overhead: float) -> float:
+    """Real challenge rule: each worker's throughput is divided by 1 + overhead * (workers - 1)."""
+    return single * workers / (1 + overhead * (workers - 1))
 
 
 def combined_throughput(single: float, workers: int, eff: float) -> float:

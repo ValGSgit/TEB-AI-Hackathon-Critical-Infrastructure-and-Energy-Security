@@ -30,6 +30,25 @@ def resolve_countries(*, eu_residency: bool = False, countries=None, all_countri
     return frozenset(allowed)
 
 
+def resolve_residency(residency: str, allowed=None, forbidden=None, all_countries=()) -> frozenset:
+    """Countries a real challenge workload may run in.
+
+    residency is "ANYWHERE", "EU" (Switzerland excluded) or a single country code such as "CH".
+    An explicit allow list narrows it further; the forbid list always wins.
+    """
+    if residency == "ANYWHERE":
+        base = frozenset(all_countries)
+    elif residency == "EU":
+        base = frozenset(all_countries) & EU_EEA
+    elif len(residency) == 2 and residency.isupper():
+        base = frozenset({residency})
+    else:
+        raise ValueError(f"unknown residency {residency!r}")
+    if allowed:
+        base &= frozenset(allowed)
+    return frozenset(base - frozenset(forbidden or ()))
+
+
 def is_allowed(workload: Workload, zone: Zone) -> bool:
     return bool(workload.allowed_countries) and zone.country in workload.allowed_countries
 
