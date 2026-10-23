@@ -6,8 +6,9 @@ GreenOps scheduler (from `greenops/`):
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q        # 22 tests
-python compare.py 20
+python -m pytest -q        # about 70 tests, about 2 min
+python -m greenops.play --seeds 8                           # real-challenge planner on the offline game
+python compare.py 20                                        # earlier synthetic path
 python -m greenops.experiments --seeds 12
 python -m greenops.export --seed 3 && python ui/build.py   # -> ui/dashboard.html
 python globe/build.py                                      # -> globe/earth.html
@@ -23,21 +24,36 @@ python forcegeo/galileo-live/build.py
 python forcegeo/galileo-design/compute_sky.py   # -> sky2.json (needs skyfield + numpy)
 ```
 
+## Practice and judged runs
+
+See `greenops/NEXT_STEPS.md` ("How to run") for the full steps. In short, from `greenops/`, with the run left READY
+(our first create starts the clock):
+
+```bash
+python -m greenops.live --probe --out .local/probe      # read-only: zones, types, forecast shape, plan
+python -m greenops.live --out .local/runN               # the run; restart it if it dies (it adopts VMs)
+docker build -t greenops greenops                       # judged image (Python 3.13)
+```
+
+Credentials: `greenops-exo.json` in the repo root, plus the grid secret in `.env` or `greenops/.local/greenops.env`
+(template: `greenops/credentials.example.env`). All git-ignored. Real-run carbon values stay out of git.
+
 ## CI (`.github/workflows/tests.yml`)
 
-- `greenops`: `pip install`, `pytest -q`, `compare.py 5`.
+- `greenops`: `pip install -r requirements-dev.txt`, `pytest -q`, `compare.py 5`, `greenops.play --seeds 2`.
 - `galileo-live`: `python forcegeo/galileo-live/build.py`.
 - `greenops-ui`: experiments + export + `ui/build.py` + `globe/build.py`.
 
 ## Working rules
 
 - Work on a branch, open a pull request, merge when the tests check is green.
-- Never commit credentials. Exoscale executor reads `EXOSCALE_API_KEY` / `EXOSCALE_API_SECRET` from the environment.
+- Never commit credentials. `greenops.live` reads the run config or `EXOSCALE_API_KEY` / `EXOSCALE_API_SECRET` /
+  `GREENOPS_CLOUD_ENDPOINT` / `GREENOPS_GRID_SECRET` from the environment or a git-ignored env file.
 - GreenOps rule: a workload placed in a forbidden country disqualifies the run; every placement goes through
   `greenops/greenops/guard.py`.
 - GreenOps rule: use only forecasts published for the current run.
 
 ## Environment
 
-- Python 3.12 (CI/Docker), 3.11+ (README).
-- Docker: `greenops/Dockerfile` (`python:3.12-slim`, `CMD ["python", "compare.py", "10"]`).
+- Python 3.12 (CI), 3.13 (Docker image, what the judges run); 3.10+ works locally.
+- Docker: `greenops/Dockerfile` (`python:3.13-slim`, unprivileged, `ENTRYPOINT ["python", "-m", "greenops.live"]`).

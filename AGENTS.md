@@ -10,13 +10,16 @@ share the repo and each one uses a different tool, so nothing here may depend on
    whole run, even if the platform rejects it.
 2. **Forecasts only.** The scheduler may use only the electricity forecasts published for the current run. Never
    commit actual or future carbon values for a scenario, or a schedule built from them.
-3. **No credentials in git.** Exoscale keys come from `EXOSCALE_API_KEY` / `EXOSCALE_API_SECRET` in the environment.
+3. **No credentials in git.** Keys come from the environment (`EXOSCALE_API_KEY`, `EXOSCALE_API_SECRET`,
+   `GREENOPS_GRID_SECRET`, ...) or from git-ignored files (`greenops-exo.json`, `.env`, `greenops/.local/`).
 4. **Don't overwrite existing work.** Read the code and `docs/context/` before changing structure; extend, don't replace.
 
 ## Repo facts
 
-- Python packages live under `greenops/greenops/` (`guard.py`, `policy.py`, `sim.py`, `export.py`, ...); tests in
-  `greenops/tests/`; built pages in `greenops/ui/` and `greenops/globe/`.
+- Python packages live under `greenops/greenops/`. Real-challenge path: `spec.py` (vendored spec in
+  `greenops/challenge/`), `planner.py`, `live.py` (entry point), `game.py` / `play.py` (offline game). Earlier
+  synthetic path: `policy.py`, `sim.py`, `export.py`. Tests in `greenops/tests/`; built pages in `greenops/ui/` and
+  `greenops/globe/`. Status and plan: `greenops/NEXT_STEPS.md`.
 - `forcegeo/galileo-design/*.dc.html` need the design-canvas runtime, which is not part of the repo (see known issues).
 - Generated pages are long by design: `greenops/ui/dashboard.html`, `greenops/globe/earth.html` and
   `forcegeo/galileo-live/galileo-live.html` embed data and are rebuilt by their `build.py`; edit the

@@ -12,6 +12,18 @@
   disqualifies the whole run even if the API rejects it.
 - **ADR-0005**: UI and 3D globe consume a versioned JSON run export produced by `greenops.export` from the local
   simulator; a second exporter from the real platform is expected on Friday with no UI changes.
+- **ADR-0007**: Vendor the organizers' public spec (`greenops/challenge/*.json`, hash-checked against their manifest)
+  and load it with `spec.py` into the existing model, instead of hand-copying numbers. Public data only: no electricity
+  series.
+- **ADR-0008**: Real-challenge scheduler is a rolling-horizon slot planner (`planner.py`), not the per-job wait rule of
+  ADR-0003. Reason: stopped VMs keep quota, so per-job pausing starved late jobs of quota. Each job gets a block whose
+  quota is reserved whole; it runs in the cleanest hours inside it. Beyond the 24 h forecast: same-hour/mean blend
+  plus a 10% risk premium.
+- **ADR-0009**: Test the live client against `tests/fake_platform.py` (the API subset served over the offline game),
+  so the control loop, URLs and request shapes are covered without credentials.
+- **ADR-0010**: The judged artifact is `greenops/Dockerfile` running `python -m greenops.live`, matching the judges'
+  limits (2 CPUs, 1 GiB, read-only root, `/tmp` only). The controller never exits mid-run on a non-residency error and
+  adopts existing VMs after a restart.
 - **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
   English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
   commit as the change they describe. External skills are optional: nothing in the repo depends on them.
