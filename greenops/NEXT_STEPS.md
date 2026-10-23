@@ -1,6 +1,6 @@
 # GreenOps: where we are and what comes next
 
-Written after day 1 (Fri 23 Oct 2026). Start here on Saturday.
+Written after day 1 (Fri 23 Oct 2026), after two practice runs. Start here on Saturday.
 
 ## Status
 
@@ -8,7 +8,8 @@ Written after day 1 (Fri 23 Oct 2026). Start here on Saturday.
   run at 360×**. All 15 workloads were delivered on time, the run stayed qualified, every VM was deleted, and the
   platform refused no actions. It is **first on the preliminary leaderboard**. The carbon and score figures are on
   the run dashboard only; real-run values stay out of git (rule 2).
-- Everything is on `main`: PRs #6 and #7. Tests: `python -m pytest -q` from `greenops/` (36 tests, about 50 s on Windows).
+- Everything is on `main`: PRs #6–#9 (#9: the controller never exits mid-run). Tests: `python -m pytest -q` from
+  `greenops/` (37 tests, about 1–2 min on Windows).
 - Open PR #5 (Oliver, `docs/context/`). Once merged, update `architecture.md`, `workflow.md`, `decisions.md`
   (ADRs: rolling-horizon slot planner; vendored public spec) and `glossary.md` (stop/resume, block, run hours).
 
@@ -34,9 +35,14 @@ in our Docker image (Python 3.13, what the judges use):
 
 ```bash
 docker build -t greenops greenops
+mkdir -p greenops/.local/runN
 docker run --rm --read-only --tmpfs /tmp --cpus 2 --memory 1g --env-file .env \
-  -v "$PWD/greenops-exo.json:/cfg/greenops-exo.json:ro" greenops --config /cfg/greenops-exo.json
+  -v "$PWD/greenops-exo.json:/cfg/greenops-exo.json:ro" -v "$PWD/greenops/.local/runN:/tmp/out" \
+  greenops --config /cfg/greenops-exo.json --out /tmp/out
 ```
+
+Add `--probe` first for the read-only check. Without the `/tmp/out` mount the logs vanish with the container.
+In Git Bash on Windows, prefix with `MSYS_NO_PATHCONV=1` and use `$(pwd -W)` instead of `$PWD`.
 
 `--env-file .env` works with the short names too; `live.py` maps them to the full ones.
 
@@ -56,6 +62,15 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
   (no quota fit before its deadline). It finished only 1.9 h before its deadline. This is the main risk to the
   5,000-point on-time bonus.
 
+## Run 2 (720×, in our Docker image: the judges' setup)
+
+- Same planner as run 1, plus the fixes from #7 and #9. It ran in the container with a read-only root, 2 CPUs and
+  1 GiB, credentials from `--env-file .env`, and logs mounted to `greenops/.local/run2`.
+- 15/15 delivered on time, all 15 VMs deleted, the controller ended on its own at simulated hour 117.7. No crash,
+  no warnings, no refused actions. Compare its score with run 1 on the dashboard and finalize the better one.
+- The same weak spot as run 1: `w-05-eu-render` was "blocked" at hours 77 and 80 and finished 1.7 h before its
+  deadline. The postponing is systematic, not bad luck, so plan item 1 is the priority.
+
 ## Plan, in order
 
 1. **Stop the postponing** (`planner.py`, `_replan` / `_best_block`).
@@ -65,12 +80,12 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
      capacity in the last 24–36 h.
    - Add an offline test in `tests/test_planner.py` that reproduces late crowding (track the minimum slack per
      job over a `play.run`).
-2. **Never exit mid-run** (`live.py` main loop): catch every exception per iteration except
-   `ResidencyViolation`, log it and continue. A crash leaves VMs unmanaged.
+2. ~~Never exit mid-run~~: done in #9. Every error except `ResidencyViolation` is logged and retried on the
+   next poll.
 3. **Check carbon offline:** `python -m greenops.play --seeds 8` before and after each change; keep 15/15 on
    time.
-4. **Second practice run at 720× in Docker** (judges' speed and Python version). Compare with run 1 on the
-   dashboard. Finalize the better one.
+4. ~~Second practice run at 720× in Docker~~: done (run 2, above). After item 1, do run 3 the same way and
+   compare on the dashboard.
 5. **Created jobs can adapt** (planner):
    - Add workers up to `max_workers` when slack gets low (w-06 was stuck on 1 of 2).
    - Let a created job move its run hours later; stopping costs no electricity.
