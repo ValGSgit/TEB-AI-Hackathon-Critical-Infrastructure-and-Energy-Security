@@ -13,3 +13,6 @@ greenops-exo.json
 greenops-exo*.json
 .local/
 greenops.env
+
+site/dist/
+_site/

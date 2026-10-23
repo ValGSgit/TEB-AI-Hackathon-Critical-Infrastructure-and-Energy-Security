@@ -24,6 +24,9 @@
 - **ADR-0010**: The judged artifact is `greenops/Dockerfile` running `python -m greenops.live`, matching the judges'
   limits (2 CPUs, 1 GiB, read-only root, `/tmp` only). The controller never exits mid-run on a non-residency error and
   adopts existing VMs after a restart.
+- **ADR-0011**: Project site on GitHub Pages, built in CI from `site/template.html` and the offline game
+  (`site/build.py`), not committed as HTML. Its replay and benchmark use synthetic grids only, so no real-run
+  electricity or carbon values are published (rule 2). The Control Room and Earth view are copied in.
 - **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
   English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
   commit as the change they describe. External skills are optional: nothing in the repo depends on them.
