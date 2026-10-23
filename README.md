@@ -8,7 +8,7 @@ Team repo. Everything we build, before and during the event, goes here.
 
 | Folder | What it is | Status |
 | --- | --- | --- |
-| [`greenops/`](greenops/) | Carbon-aware scheduler for the **Exoscale GreenOps Challenge** (our primary challenge) | Pre-built core, simulator and tests; Friday: plug in the real data, API and score |
+| [`greenops/`](greenops/) | Carbon-aware scheduler for the **Exoscale GreenOps Challenge** (our primary challenge) | Real-challenge planner, live API client and Docker image (see greenops/README.md) |
 | [`greenops/ui/`](greenops/ui/) | GreenOps Control Room: our decision explainer, separate from the platform dashboard (experiment ladder, options at release per workload, timeline in platform phase names, forecasts, policy comparison, quotas, residency, decision log) | Built from simulator runs; Friday: feed it real run data |
 | [`greenops/globe/`](greenops/globe/) | GreenOps Earth: 3D replay of a run on the real map with the 11 challenge zones by carbon intensity and workload arcs (satellite layers optional) | Built from simulator runs |
 | [`forcegeo/showcase/`](forcegeo/showcase/) | ForceGeo: location-trust checks for pipeline commands, on the real TAG/SOL gas corridor | Interactive demo page (backup for an open security track) |
@@ -18,12 +18,13 @@ Team repo. Everything we build, before and during the event, goes here.
 
 ## Quick start
 
-GreenOps scheduler (Python 3.11+):
+GreenOps orchestrator (Python 3.12+):
 
 ```bash
 cd greenops
-pip install -r requirements.txt
-pytest                      # 20 tests, incl. the residency rule that can disqualify a run
+pip install -r requirements-dev.txt
+pytest                      # 35 tests, incl. the residency rule that can disqualify a run
+python -m greenops.play --seeds 4           # planner vs baselines on the offline game
 python compare.py 20        # baseline vs carbon-aware on 20 practice scenarios
 python -m greenops.experiments --seeds 12   # experiment ladder (feeds the Control Room)
 ```
