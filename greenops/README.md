@@ -39,7 +39,7 @@ Windows checkouts.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                       # 35 tests (on Windows: set PYTHONUTF8=1 for the exoscale package)
+python -m pytest -q                       # 70 tests (on Windows: set PYTHONUTF8=1 for the exoscale package)
 python -m greenops.play --seeds 4         # policy comparison on the offline game
 python -m greenops.live --probe --out .local/probe     # read-only API checks, creates nothing
 python -m greenops.live --out .local/run1              # live run
@@ -82,17 +82,18 @@ container, with these limits (1 s polling = 0.2 simulated hours at 720×), deliv
 memory. Re-planning took 0.63 s on average and 0.82 s at most per simulated hour, including 8 forecast
 fetches; the budget is 5 s.
 
-### Results on the offline game (synthetic grid, 4 seeds)
+### Results on the offline game (synthetic grids, 8 seeds: `python -m greenops.play --seeds 8`)
 
-| Policy | Carbon | Energy | On time |
-| --- | --- | --- | --- |
-| naive (first legal zone, start at release) | 24.7 kg | 124.4 kWh | 15/15 |
-| + cleanest zone | 14.0 kg | 107.1 kWh | 15/15 |
-| + zone + time shift | 14.0 kg | 107.4 kWh | 15/15 |
-| carbon-aware (blocks with stop/resume) | 13.3 kg | 108.5 kWh | 15/15 |
+| Policy | Carbon (mean ± sd) | Energy | Score | On time |
+| --- | --- | --- | --- | --- |
+| naive (first legal zone, fastest profile, start at release) | 24.63 ± 0.77 kg | 124.4 kWh | 20,323 | 15/15 |
+| + cleanest zone and efficient hardware | 14.10 ± 0.42 kg | 107.2 kWh | 21,889 | 15/15 |
+| + time shift | 14.07 ± 0.42 kg | 106.9 kWh | 21,894 | 15/15 |
+| carbon-aware (blocks with stop/resume) | 13.35 ± 0.45 kg | 107.9 kWh | 22,013 | 15/15 |
 
-That is −46% against naive, mostly from *where*. These are synthetic numbers; the platform computes the
-real greenops-score-v2.
+That is −46% against naive, mostly from *where* and *which hardware*. These are synthetic grids. `game.score()`
+uses the greenops-score-v2 formula (see the root README), which we confirmed against the platform's
+per-workload breakdown.
 
 ### Assumptions to verify on the real API
 
@@ -133,7 +134,7 @@ never to one scenario.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q          # 19 tests
+python -m pytest -q          # the full suite (70 tests, both paths)
 python compare.py 20         # policy comparison on 20 practice scenarios
 python -m greenops.experiments --seeds 12   # experiment ladder, one change at a time
 ```
