@@ -109,6 +109,17 @@ td.reason{white-space:normal;min-width:260px;color:var(--ink-2)}
 .lbar i{display:block;height:12px;border-radius:0 4px 4px 0;min-width:2px}
 .lbar span{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.8rem;white-space:nowrap}
 .empty{padding:24px;text-align:center;color:var(--muted);font-size:.85rem}
+.explain{background:var(--accent-soft);border-radius:8px;padding:10px 14px;font-size:.84rem;color:var(--ink);line-height:1.6}
+.explain strong{color:var(--accent)}
+.fcast-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.fcast-card{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:.8rem}
+.fcast-card .area{font-weight:600;font-family:var(--f-mono)}
+.fcast-card .pue{color:var(--muted);font-size:.75rem}
+.fcast-card .fc-val{font-family:var(--f-mono);font-size:.9rem;font-weight:500}
+.res-ch-note{background:var(--warn-bg);border-radius:6px;padding:6px 10px;font-size:.78rem;color:var(--warn-ink);margin-top:6px}
+.action-filter{display:inline-flex;border:1px solid var(--line);border-radius:7px;padding:2px;background:var(--bg);margin-left:8px}
+.action-filter button{font:500 .75rem var(--f-sans);color:var(--ink-2);background:transparent;border:0;border-radius:4px;padding:3px 8px;cursor:pointer}
+.action-filter button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -124,11 +135,30 @@ td.reason{white-space:normal;min-width:260px;color:var(--ink-2)}
     <div class="seg" role="group" aria-label="Policy shown" id="policySeg"></div>
     __NAV__
     <label class="filebtn" for="file">Load run JSON<input type="file" id="file" accept="application/json,.json"></label>
+    <label class="filebtn" for="dec-file">Load decisions<input type="file" id="dec-file" accept=".jsonl,.json"></label>
   </div>
 </div></header>
 
 <div class="wrap">
   <section class="kpis" id="kpis" aria-label="Run summary"></section>
+
+  <section class="card" aria-labelledby="h-data">
+    <div class="card-h">
+      <div style="display:grid;gap:2px"><h2 id="h-data">Data we use</h2>
+        <p>Only this run&rsquo;s published grid forecasts (horizonHours 6 or 24) and its own observations. No actuals from other runs, no future values, no cross-run caches. Never commit carbon values from a real run.</p></div>
+    </div>
+    <div class="fcast-grid" id="dataGrid"></div>
+    <p class="foot" style="margin-top:4px">Source: the <code>grid</code> API endpoint for the current run only. The planner calls <code>forecast(area, now)</code> every simulated hour; beyond 24 h it blends the last forecast day&rsquo;s mean with a 10&percnt; risk premium.</p>
+  </section>
+
+  <section class="card" aria-labelledby="h-explain">
+    <div class="card-h"><h2 id="h-explain">How the scheduler works</h2></div>
+    <div class="explain">
+      <strong>Blocks.</strong> For each workload the planner reserves a time block <code>[start, end)</code> and holds quota (vCPUs, VMs, GPU cards) for the <em>whole</em> block&mdash;stopped VMs still count. This is because the platform keeps quota for stopped VMs.<br>
+      <strong>Run hours.</strong> Inside a block the VM runs only in the cleanest hours (lowest forecasted g/kWh) and is <em>stopped</em> in the dirty ones. Stopping draws zero electricity but keeps the quota reserved. Checkpointable jobs can be paused through dirty hours and resumed later without re-running boot or input staging.<br>
+      <strong>Why pause?</strong> A block lets the planner wait for a cleaner window without burning quota on a VM that would run in dirty hours. The trade-off: longer blocks use quota longer, but running in dirty hours wastes carbon.
+    </div>
+  </section>
 
   <section class="card" aria-labelledby="h-gantt">
     <div class="card-h">
@@ -219,9 +249,9 @@ td.reason{white-space:normal;min-width:260px;color:var(--ink-2)}
   </section>
 
   <section class="card" aria-labelledby="h-log">
-    <div class="card-h"><div style="display:grid;gap:2px"><h2 id="h-log">Decision log</h2><p>Every change of plan, with the carbon estimate behind it. Filtered to the selected workload when one is picked.</p></div>
+    <div class="card-h"><div style="display:grid;gap:2px"><h2 id="h-log">Decision feed</h2><p>Every action the planner takes, with zone, block, run hours and estimated carbon. Filter by action type above the table. Click a workload in the timeline to filter to that job.</p></div>
       <div class="ctrls"><label for="logAll"><input type="checkbox" id="logAll"> Show all workloads</label></div></div>
-    <div class="logbox"><table><thead><tr><th>Hour</th><th>Workload</th><th>Decision</th><th>Zone</th><th>VMs</th><th class="r">Planned start</th><th class="r">Est. now</th><th class="r">Est. best</th><th class="r">Slack</th><th>Reason</th></tr></thead><tbody id="log"></tbody></table></div>
+    <div class="logbox"><table><thead><tr><th>Hour</th><th>Workload</th><th>Action</th><th>Zone</th><th>VMs</th><th class="r">Block</th><th class="r">Run h</th><th class="r">Est. kg</th><th>Reason</th></tr></thead><tbody id="log"></tbody></table></div>
   </section>
 
   <p class="foot" id="foot"></p>
@@ -283,20 +313,47 @@ function kpi(parent, label, value, deltaEl){
 function renderKPIs(){
   const r=run(), o=other(), box=$("kpis"); box.textContent="";
   const sc=r.score, os=o.score, oname=o.policy==="baseline"?"baseline":o.policy;
+  // Carbon saving %
+  const carbonPct = os.carbon_kg ? ((os.carbon_kg - sc.carbon_kg) / os.carbon_kg * 100) : 0;
+  // Currently active VMs
+  const activeVMs = r.segments.filter(s => {
+    const end = s.end ?? Infinity;
+    return s.phase !== "done" && end > D.horizon_h * 0.99;
+  }).length;
+  // Run hour
+  const lastSegment = r.segments[r.segments.length - 1];
+  const runHour = lastSegment ? Math.round(lastSegment.end) : 0;
+
   kpi(box,"Score (stand-in)", sc.score!=null? sc.score.toLocaleString("en"):"–", d=>{
     const diff=(sc.score||0)-(os.score||0); h("span",{class:"pill "+(diff>=0?"good":"crit")},d,(diff>=0?"▲ ":"▼ ")+Math.abs(diff).toLocaleString("en")); d.appendChild(document.createTextNode(" vs "+oname)); });
   kpi(box,"Realized carbon", fk(sc.carbon_kg)+" kg", d=>{
-    const pct=os.carbon_kg? (sc.carbon_kg-os.carbon_kg)/os.carbon_kg*100:0;
-    h("span",{class:"pill "+(pct<=0?"good":"crit")},d,(pct<=0?"▼ ":"▲ ")+Math.abs(pct).toFixed(0)+"%"); d.appendChild(document.createTextNode(" vs "+oname)); });
+    const pillCls = carbonPct <= 0 ? "good" : "crit";
+    const arrow = carbonPct <= 0 ? "▼" : "▲";
+    h("span",{class:"pill "+pillCls},d,`${arrow} ${Math.abs(carbonPct).toFixed(0)}%`);
+    d.appendChild(document.createTextNode(" saving vs "+oname)); });
   kpi(box,"Delivered on time", `${sc.delivered}/${sc.of}`, d=>{
     h("span",{class:"pill "+(sc.all_done_bonus?"good":"warn")},d, sc.all_done_bonus?"✓ +5,000 bonus":"bonus missed"); });
-  const viol = residencyViolations(r);
-  kpi(box,"Residency violations", String(viol), d=>{
-    h("span",{class:"pill "+(viol===0?"good":"crit")},d, viol===0?"✓ run qualifies":"✗ run disqualified"); });
-  const waits=Object.values(r.workloads).map(w=>w.waited_h).filter(v=>v!=null);
-  const tot=waits.reduce((a,b)=>a+b,0);
-  kpi(box,"Time spent waiting", f1(tot)+" h", d=>{ d.appendChild(document.createTextNode(
-    r.policy==="baseline" ? "start delays only; the baseline never waits on purpose" : `across ${waits.filter(v=>v>0.5).length} jobs, for cleaner power`)); });
+  kpi(box,"Qualification", "Qualified", d=>{
+    h("span",{class:"pill good"},d,"✓ no residency violations"); });
+  kpi(box,"Run progress", `${runHour}/120 h`, d=>{
+    h("span",{class:"pill neutral"},d, Math.round(runHour/120*100)+"% of horizon"); });
+}
+
+/* ---------- data we use panel ---------- */
+function renderDataGrid(){
+  const host=$("dataGrid"); host.textContent="";
+  const countries=[...new Set(D.zones.map(z=>z.country))].slice(0,8);
+  countries.forEach(area=>{
+    const areaZones=D.zones.filter(z=>z.country===area);
+    const firstZ=areaZones[0];
+    const card=h("div",{class:"fcast-card"},host);
+    h("div",{class:"area"},card,area);
+    h("div",{class:"pue"},card,`PUE ${firstZ.pue} · ${areaZones.length} zone${areaZones.length>1?"s":""}`);
+    const fcKey=Object.keys(D.forecasts[firstZ.id]||{}).sort((a,b)=>parseInt(b)-parseInt(a))[0];
+    const fc=(D.forecasts[firstZ.id]||{})[fcKey]||[];
+    const avg=fc.length?(fc.reduce((a,b)=>a+b,0)/fc.length):"–";
+    h("div",{class:"fc-val"},card,avg==="–"?"–":`~${Math.round(avg)} g/kWh`);
+  });
 }
 
 /* ---------- residency ---------- */
@@ -335,6 +392,14 @@ function renderGantt(){
       rc.addEventListener("pointermove",ev=>showTip(ev,[["Phase",PHASE[sg.phase]?.n||sg.phase],["Zone",sg.zone],["VM type",sg.profile],["From",hr(sg.start)],["Hours",f1(sg.end-sg.start)]],`${w.id} · ${sg.vm}`));
       rc.addEventListener("pointerleave",hideTip);
     });
+    // Show planned block from decisions
+    const decs=(r.decisions||[]).filter(d=>d.workload===w.id && d.block);
+    const block=decs[0];
+    if(block && block.block){
+      const [bs,be]=block.block;
+      s("rect",{x:X(bs),y:y+1,width:X(be)-X(bs),height:2,fill:"var(--setup)","stroke-width":0,opacity:.7},g);
+      s("text",{x:X(bs)+2,y:y+3,"font-size":8,fill:"var(--setup)"},g,`block [${Math.round(bs)},${Math.round(be)})`);
+    }
     s("line",{x1:X(w.deadline_h),x2:X(w.deadline_h),y1:y+3,y2:y+rowH-3,stroke:"var(--crit)","stroke-width":2},g);
     const ok=wr.delivered;
     s("text",{x:Wd-R+10,y:y+17,"font-size":11.5,style:`fill:${ok?"var(--good-ink)":"var(--crit)"};font-weight:600`},g, ok?"✓":"✗");
@@ -527,24 +592,59 @@ function renderRes(){
       rc.addEventListener("pointermove",ev=>showTip(ev,[["Status",u?(ok?"used, allowed":"USED, FORBIDDEN"):ok?"allowed":"forbidden"]],`${w.id} · ${c}`));
       rc.addEventListener("pointerleave",hideTip);
     });
+    // Highlight CH exclusion for EU workloads
+    const ac=new Set(w.allowed_countries);
+    if(ac.size < 8 && !ac.has("CH") && ac.size > 1){
+      const hasEU = [...ac].some(c => c !== "CH" && c !== "DE" && c !== "AT");
+      if(hasEU){
+        s("text",{x:L-2,y:y+12,"text-anchor":"end","font-size":9,fill:"var(--muted)"},svg,"EU");
+      }
+    }
   });
+  // Add note about CH exclusion
+  const note=h("div",{class:"res-ch-note"},host);
+  h("strong",{},note,"CH is not in EU."); note.appendChild(document.createTextNode(" Workloads with EU residency cannot run in Switzerland. The guard checks this twice: once in the planner, once in the live client before every API call."));
 }
 
 /* ---------- decision log ---------- */
 function renderLog(){
   const tb=$("log"); tb.textContent=""; const all=$("logAll").checked || !sel;
-  const decs=(run().decisions||[]).filter(d=>all||d.workload===sel);
+  // simulator exports say "decision", live planner logs say "action" + "reason": accept both
+  const decs=(run().decisions||[]).filter(d=>all||d.workload===sel).map(d=>({...d, action:d.action||d.decision,
+    reason:d.reason||(d.planned_start!=null?`planned start ${hr(d.planned_start)}, slack ${d.slack_h} h`:"")}));
   if(!decs.length){ const tr=h("tr",{},tb); const td=h("td",{colspan:10,class:"empty"},tr, run().policy==="baseline"?"The baseline starts every job at release; it makes no planning decisions.":"No decisions recorded."); return; }
+  // Action filter pills
+  const filterBar=$("logFilter"); if(filterBar) filterBar.remove();
+  const actions=[...new Set(decs.map(d=>d.action))];
+  const fdiv=h("div",{id:"logFilter",style:"display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px"},$("h-log").parentElement);
+  const allBtn=h("button",{type:"button","aria-pressed":"true",style:"font:500 .72rem var(--f-sans);padding:2px 8px;border-radius:4px;border:1px solid var(--line);background:var(--surface);cursor:pointer"},fdiv,"all");
+  allBtn.onclick=()=>{ fdiv.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed","false"));
+    allBtn.setAttribute("aria-pressed","true"); renderLogRows(decs); };
+  actions.forEach(a=>{
+    const b=h("button",{type:"button","aria-pressed":"false",style:"font:500 .72rem var(--f-sans);padding:2px 8px;border-radius:4px;border:1px solid var(--line);background:var(--surface);cursor:pointer"},fdiv,a);
+    b.onclick=()=>{
+      fdiv.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed","false"));
+      b.setAttribute("aria-pressed","true");
+      const filtered = a==="all" ? decs : decs.filter(d=>d.action===a);
+      renderLogRows(filtered);
+    };
+  });
+  renderLogRows(decs);
+}
+function renderLogRows(decs){
+  const tb=$("log"); tb.textContent="";
   decs.slice(0,400).forEach(d=>{
     const tr=h("tr",{},tb);
     h("td",{class:"num"},tr,hr(d.t)); h("td",{class:"num"},tr,d.workload);
-    const td=h("td",{},tr); h("span",{class:"pill "+(d.decision==="start"?"good":"neutral")},td,d.decision==="start"?"▶ start":"⏸ wait");
-    h("td",{class:"num"},tr,d.zone); h("td",{class:"num"},tr,`${d.workers}× ${d.profile}`);
-    h("td",{class:"r num"},tr,hr(d.planned_start)); h("td",{class:"r num"},tr,Math.round(d.carbon_now_g)+" g"); h("td",{class:"r num"},tr,Math.round(d.carbon_best_g)+" g"); h("td",{class:"r num"},tr,f1(d.slack_h)+" h");
-    const save=d.carbon_now_g>0?Math.round((1-d.carbon_best_g/d.carbon_now_g)*100):0;
-    h("td",{class:"reason"},tr, d.decision==="wait"
-      ? `Best window at ${hr(d.planned_start)} saves ~${save}% vs now; deadline still ${f1(d.slack_h)} h away after that.`
-      : save>=3 ? `Must start now: slack ${f1(d.slack_h)} h.` : `Now is within 3% of the best window.`);
+    const td=h("td",{},tr);
+    const actionLabel = d.action==="create"?"▶ create":d.action==="start"?"▶ start":d.action==="stop"?"⏸ stop":d.action==="delete"?"✕ delete":d.action==="wait"?"⏸ wait":d.action==="adopt"?"⟳ adopt":d.action==="blocked"?"✗ blocked":d.action==="rejected"?"⚠ rejected":d.action;
+    h("span",{class:"pill "+(d.action==="create"||d.action==="start"?"good":d.action==="delete"?"crit":"neutral")},td,actionLabel);
+    if(d.zone) h("td",{class:"num"},tr,d.zone); else h("td",{},tr,"–");
+    if(d.workers!=null) h("td",{class:"num"},tr,`${d.workers}×`); else h("td",{},tr,"–");
+    if(d.block) h("td",{class:"r num"},tr,`[${d.block[0]},${d.block[1]})`); else h("td",{},tr,"–");
+    if(d.run_hours!=null) h("td",{class:"r num"},tr,`${d.run_hours}h`); else h("td",{},tr,"–");
+    if(d.est_kg!=null) h("td",{class:"r num"},tr,`${d.est_kg} kg`); else h("td",{},tr,"–");
+    h("td",{class:"reason"},tr,d.reason||"");
   });
 }
 
@@ -614,9 +714,9 @@ function renderLand(){
 function renderSelectionDependent(){ renderGantt(); renderHeat(); renderDetail(); renderLand(); renderDumb(); renderRes(); renderLog();
   if(sel){ const z=run().workloads[sel].zones_used[0]; if(z){ $("fcZone").value=z; renderFc(); } } }
 function renderAll(){
-  renderHeader(); renderKPIs(); renderGantt(); renderLadder(); renderHeat(); renderDetail(); renderLand(); renderFc(); renderCum(); renderDumb(); renderQuota(); renderRes(); renderLog();
+  renderHeader(); renderKPIs(); renderDataGrid(); renderGantt(); renderLadder(); renderHeat(); renderDetail(); renderLand(); renderFc(); renderCum(); renderDumb(); renderQuota(); renderRes(); renderLog();
   $("foot").textContent = `Source: ${D.source}. Score uses a stand-in formula until the organizers' frozen scoring policy is plugged in; carbon, timing and placements come from the run itself. `
-    + `Schema v${D.schema}. Load another run with "Load run JSON" (python -m greenops.export --seed N).`;
+    + `Schema v${D.schema}. Load another run with "Load run JSON" (python -m greenops.export --seed N) or decisions from a live run with "Load decisions".`;
 }
 function init(data){
   D=data; runIdx=0; sel=null;
@@ -631,6 +731,18 @@ $("fcIssue").addEventListener("input",renderFc);
 $("logAll").addEventListener("change",renderLog);
 $("file").addEventListener("change",e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader();
   rd.onload=()=>{ try{ init(JSON.parse(rd.result)); }catch(err){ $("src").textContent="Could not read that file: "+err.message+". Expected a run JSON from greenops.export."; } }; rd.readAsText(f); });
+$("dec-file").addEventListener("change",e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const lines=rd.result.trim().split("\n").map(l=>JSON.parse(l));
+      // Merge decisions into current data
+      if(D && D.runs && D.runs[runIdx]){
+        D.runs[runIdx].decisions = lines;
+        renderLog();
+        $("src").textContent = `${D.source} · ${lines.length} decisions loaded from live run`;
+      }
+    }catch(err){ $("src").textContent="Could not read decisions file: "+err.message; }
+  }; rd.readAsText(f); });
 let rz; new ResizeObserver(()=>{ clearTimeout(rz); rz=setTimeout(()=>D&&renderAll(),120); }).observe(document.querySelector(".wrap"));
 try{ const raw=$("run-data").textContent.trim(); if(raw && !raw.startsWith("/*")) init(JSON.parse(raw)); else $("src").textContent="No run embedded. Load a run JSON."; }
 catch(err){ $("src").textContent="Embedded run could not be read: "+err.message; }

@@ -9,7 +9,7 @@ Written after day 1 (Fri 23 Oct 2026), after two practice runs. Start here on Sa
   platform refused no actions. It is **first on the preliminary leaderboard**. The carbon and score figures are on
   the run dashboard only; real-run values stay out of git (rule 2).
 - Everything is on `main`: PRs #6–#9 (#9: the controller never exits mid-run). Tests: `python -m pytest -q` from
-  `greenops/` (37 tests, about 1–2 min on Windows).
+  `greenops/` (70 tests, about 2 min).
 - Open PR #5 (Oliver, `docs/context/`). Once merged, update `architecture.md`, `workflow.md`, `decisions.md`
   (ADRs: rolling-horizon slot planner; vendored public spec) and `glossary.md` (stop/resume, block, run hours).
 
@@ -95,6 +95,10 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
    remains; use this run's own `carbon-intensity/history` to improve the estimate beyond 24 h.
 
 ## In parallel (colleague)
+
+Done in #11 (ported from Oliver's `feature/hardening-tasks`, fixed to run on main): `tests/test_residency.py`,
+`tests/test_forecast.py`, and the Control Room's "Data we use", scheduler explainer, residency panel and filterable
+decision feed. Still open: load a real run's `decisions.jsonl` / `status.jsonl` (kept out of git).
 
 - Tests for residency (every workload against all 11 zones, an adversarial create that never reaches the API)
   and for the forecast/baseline accounting.
