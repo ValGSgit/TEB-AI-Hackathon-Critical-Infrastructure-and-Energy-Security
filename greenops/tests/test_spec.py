@@ -56,3 +56,11 @@ def test_units(spec):
     rtx = P["20000000-0000-4000-8000-000000000020"]
     assert rtx.gpu_throughput == 800 * 3600 and rtx.zones == {"de-fra-1", "hr-zag-1", "ch-dk-2"}
     assert spec.rules["reference_g_per_kwh"] == 200 and spec.rules["local_weight"] == 0.75
+
+
+def test_timestamps_with_any_fraction_length():
+    """The real work status sends fractions of 2 or 3 digits; Python < 3.11 rejects the 2-digit form."""
+    from greenops.spec import to_h
+    assert to_h("2025-09-30T00:00:00Z") == 0.0
+    assert abs(to_h("2025-10-02T20:27:40.91+00:00") - (68 + 27 / 60 + 40.91 / 3600)) < 1e-9
+    assert abs(to_h("2025-10-02T20:05:10.904Z") - (68 + 5 / 60 + 10.904 / 3600)) < 1e-9

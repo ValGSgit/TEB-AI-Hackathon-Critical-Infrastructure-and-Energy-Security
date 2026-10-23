@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+import re
 from datetime import datetime, timedelta, timezone
 from fractions import Fraction
 from pathlib import Path
@@ -24,7 +25,13 @@ HORIZON_H = 120.0
 
 
 def to_h(ts: str) -> float:
-    return (datetime.fromisoformat(ts.replace("Z", "+00:00")) - T0).total_seconds() / 3600
+    """Hours since T0. Accepts any fraction length ("...40.91+00:00"), which Python < 3.11 rejects."""
+    m = re.fullmatch(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(\.\d+)?(Z|[+-]\d\d:\d\d)?", ts.strip())
+    if not m:
+        raise ValueError(f"bad timestamp {ts!r}")
+    base, frac, tz = m.groups()
+    t = datetime.fromisoformat(base + ("+00:00" if tz in (None, "Z") else tz))
+    return (t - T0).total_seconds() / 3600 + float(frac or 0) / 3600
 
 
 def to_ts(h: float) -> str:
