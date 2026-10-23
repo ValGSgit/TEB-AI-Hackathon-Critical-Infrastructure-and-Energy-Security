@@ -8,10 +8,10 @@ Written after day 1 (Fri 23 Oct 2026), after two practice runs. Start here on Sa
   run at 360×**. All 15 workloads were delivered on time, the run stayed qualified, every VM was deleted, and the
   platform refused no actions. It is **first on the preliminary leaderboard**. The carbon and score figures are on
   the run dashboard only; real-run values stay out of git (rule 2).
-- Everything is on `main`: PRs #6–#9 (#9: the controller never exits mid-run). Tests: `python -m pytest -q` from
+- Everything is on `main`: PRs #6–#11 (#9: the controller never exits mid-run; #11: Oliver's residency/forecast tests and UI). Tests: `python -m pytest -q` from
   `greenops/` (70 tests, about 2 min).
-- Open PR #5 (Oliver, `docs/context/`). Once merged, update `architecture.md`, `workflow.md`, `decisions.md`
-  (ADRs: rolling-horizon slot planner; vendored public spec) and `glossary.md` (stop/resume, block, run hours).
+- PR #5 (Oliver, `AGENTS.md` + `docs/context/`) is merged, with `docs/context/` updated for the real-challenge path
+  (ADR-0007 to ADR-0010). Keep those docs current in the same commit as each change.
 
 ## How to run (practice)
 

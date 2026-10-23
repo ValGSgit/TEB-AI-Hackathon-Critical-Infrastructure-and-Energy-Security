@@ -32,7 +32,7 @@ Primary: **Exoscale GreenOps** (`greenops/`). Backup: ForceGeo (`forcegeo/`) for
 
 ## What the full challenge guide adds (platform preview, 21 Oct)
 
-- Real structure now in `greenops/catalog.py`: 15 named workloads with allowed countries, 11 zones in AT BG CH DE ES FR HR IT, six GPU families with caps, platform phase names (Booting, Input/setup, Computing, Stopped, Idle, Output waiting, Waiting for release).
+- Real structure now in `greenops/greenops/catalog.py`: 15 named workloads with allowed countries, 11 zones in AT BG CH DE ES FR HR IT, six GPU families with caps, platform phase names (Booting, Input/setup, Computing, Stopped, Idle, Output waiting, Waiting for release).
 - The platform already shows a map, quotas, workload progress and an allocation timeline. Our Control Room therefore explains decisions instead: options at release, the plan vs what happened, the experiment ladder.
 - "Published impact" uses delayed actuals: the controller must plan on forecasts, which ours already does.
 - Rejected residency attempts appear in the allocation history and still disqualify the run.
