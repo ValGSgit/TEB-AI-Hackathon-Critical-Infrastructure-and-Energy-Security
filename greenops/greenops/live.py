@@ -52,16 +52,22 @@ def check_endpoint(value, reference=None):
     return value
 
 
+ENV_ALIASES = {"API_KEY": "EXOSCALE_API_KEY", "API_SECRET": "EXOSCALE_API_SECRET", "CLOUD_ENDPOINT": "GREENOPS_CLOUD_ENDPOINT",
+               "GRID_ENDPOINT": "GREENOPS_GRID_ENDPOINT", "GRID_SECRET": "GREENOPS_GRID_SECRET"}
+ENV_FILES = (".local/greenops.env", ".env", "../.env")
+
+
 def load_env_file(path: str) -> None:
-    """KEY=VALUE lines into os.environ; variables already set win. Values are never printed."""
+    """KEY=VALUE lines into os.environ (short names like GRID_SECRET accepted); variables already set win.
+    Values are never printed."""
     if not Path(path).is_file():
         return
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
-        line = line.strip()
+    for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip().removeprefix("export ")
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
             if v.strip():
-                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+                os.environ.setdefault(ENV_ALIASES.get(k.strip(), k.strip()), v.strip().strip('"').strip("'"))
 
 
 def find_config(path: str | None) -> str | None:
@@ -277,8 +283,30 @@ def probe(live: Live, spec, out: Path) -> dict:
                                               and isinstance(v["body"], dict) and v["body"].get("forecast")), [])}
     if not live.grid_secret:
         summary["forecast_points"] = "skipped: GREENOPS_GRID_SECRET not set"
+    elif raw["status"]:
+        summary["plan"] = dry_plan(spec, live.forecast, view(raw["status"]))
     (out / "probe.json").write_text(json.dumps({"summary": summary, "raw": raw}, indent=1), encoding="utf-8")
     return summary
+
+
+def dry_plan(spec, forecast, st: dict) -> dict:
+    """The plan the planner would make now, from this run's forecasts, with every zone residency-checked.
+    No cloud call is made: nothing is created."""
+    pl = Planner(spec, forecast)
+    first = pl.bootstrap(st)
+    zones = {z.id: z for z in spec.zones}
+    rows, illegal = [], []
+    for wid, slot in sorted(pl.plan.items(), key=lambda kv: kv[1].start):
+        w, z = pl.W[wid], zones[slot.placement.zone_id]
+        try:
+            check_placement(w, z)
+        except ResidencyViolation:
+            illegal.append(wid)
+        rows.append(f"{wid:24s} {z.id:9s} ({z.country}; allowed {','.join(sorted(w.allowed_countries))}) "
+                    f"{spec.pinfo[slot.placement.profile_id].family}.{spec.pinfo[slot.placement.profile_id].size} "
+                    f"x{slot.placement.workers} block {slot.start}-{slot.end}h run {len(slot.run)}h")
+    return {"planned": f"{len(pl.plan)}/{len(spec.workloads)}", "all_legal": not illegal, "illegal": illegal,
+            "first_create": f"{first[0][1]} in {first[0][2]} x{len(first)}" if first else None, "slots": rows}
 
 
 def main():
@@ -290,10 +318,12 @@ def main():
     ap.add_argument("--rate", type=float, default=12, help="cloud+grid requests per second (published limit 20)")
     ap.add_argument("--max-wall", type=float, default=None,
                     help="stop after this many wall seconds (default: none; practice runs can be paused or change speed)")
-    ap.add_argument("--env-file", default=os.environ.get("GREENOPS_ENV_FILE", ".local/greenops.env"))
+    ap.add_argument("--env-file", default=os.environ.get("GREENOPS_ENV_FILE"),
+                    help="credentials file (default: .local/greenops.env, then .env here or one level up)")
     ap.add_argument("--probe", action="store_true", help="read-only API checks; creates nothing")
     a = ap.parse_args()
-    load_env_file(a.env_file)
+    for f in ([a.env_file] if a.env_file else ENV_FILES):
+        load_env_file(f)
 
     spec = load()
     account = read_account(find_config(a.config))
@@ -315,7 +345,12 @@ def main():
     W = {w.id: w for w in spec.workloads}
 
     while t_end is None or time.monotonic() < t_end:
-        raw = live.status()
+        try:
+            raw = live.status()
+        except requests.RequestException as e:      # transient: keep managing the VMs, never exit mid-run
+            print(json.dumps({"warning": f"status failed: {str(e)[:200]}"}))
+            time.sleep(2)
+            continue
         if raw is None:
             continue
         st = view(raw)
@@ -327,7 +362,12 @@ def main():
             samples.flush()
             last_sample = int(st["now_h"])
         where = {a["vm_id"]: a["zone"] for r in st["workloads"] for a in r["assignments"]}
-        actions = planner.bootstrap(st) if st["state"] == "READY" else planner.decide(st)
+        try:
+            actions = planner.bootstrap(st) if st["state"] == "READY" else planner.decide(st)
+        except (requests.RequestException, ValueError) as e:     # e.g. a forecast fetch failed: re-plan next poll
+            print(json.dumps({"warning": f"planning failed: {str(e)[:200]}"}))
+            time.sleep(1)
+            continue
         for act in actions:
             try:
                 if act[0] == "create":

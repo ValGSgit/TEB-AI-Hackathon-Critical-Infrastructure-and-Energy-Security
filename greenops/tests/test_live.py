@@ -15,7 +15,7 @@ def test_live_loop_against_fake_platform(monkeypatch, tmp_path):
                      GREENOPS_GRID_ENDPOINT=f.grid_url, GREENOPS_GRID_SECRET="g",
                      NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost").items():
         monkeypatch.setenv(k, v)
-    monkeypatch.setattr(sys, "argv", ["live", "--config", str(tmp_path / "none.json"), "--poll", "0", "--rate", "1000", "--out", str(tmp_path)])
+    monkeypatch.setattr(sys, "argv", ["live", "--env-file", str(tmp_path / "none.env"), "--config", str(tmp_path / "none.json"), "--poll", "0", "--rate", "1000", "--out", str(tmp_path)])
     from greenops import live
     with contextlib.redirect_stdout(io.StringIO()):
         live.main()
