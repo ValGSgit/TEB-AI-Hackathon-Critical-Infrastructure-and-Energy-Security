@@ -160,7 +160,7 @@ budget is 5 s.
 
 ### Tests
 
-70 tests (`python -m pytest -q`, about 2 min), run in CI on every push:
+75 tests (`python -m pytest -q`, about 2 min), run in CI on every push:
 
 | Area | What is tested |
 | --- | --- |
@@ -223,7 +223,7 @@ flowchart TB
 │   │   ├── model.py              Zone, Profile, Workload, Quotas
 │   │   └── policy.py, sim.py, scenario.py, catalog.py, export.py, experiments.py
 │   │                             pre-event synthetic path; still feeds the Control Room samples
-│   ├── tests/                    70 tests, incl. fake_platform.py
+│   ├── tests/                    75 tests, incl. fake_platform.py
 │   ├── ui/                       GreenOps Control Room (decision explainer)
 │   └── globe/                    GreenOps Earth (3D replay on the map)
 ├── site/                         project site for GitHub Pages (template + build from the offline game)
@@ -239,7 +239,7 @@ Python 3.12+ (the image uses 3.13). From `greenops/`:
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                         # 70 tests
+python -m pytest -q                         # 75 tests
 python -m greenops.play --seeds 8           # the benchmark table above
 ```
 

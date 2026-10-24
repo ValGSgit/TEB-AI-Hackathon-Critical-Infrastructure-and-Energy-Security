@@ -11,9 +11,12 @@ Every simulated hour it re-plans all unfinished workloads on an hourly grid up t
     stopped VMs keep their quota. So for each job the planner picks a block [start, start+L) with
     L between its run time and 2x that, runs in the cleanest hours inside the block and stops in the
     others, and reserves quota (vCPUs, GPU cards, VM count) for the whole block.
-  * Jobs are planned in order of flexibility (least spare time first); jobs already running first.
+  * Each job is planned to end slack_h hours before its latest end when that fits; a created job that
+    no longer fits that runs every hour instead of pausing. A start planned within commit_h hours is
+    kept (same placement, same hour) instead of being re-optimized later at every re-plan.
+  * Jobs are planned in order of flexibility (least spare time first); created jobs first, then kept starts.
     Placement (zone, profile, workers) is chosen at the same time, among residency-legal zones only.
-  * Now: a job whose block starts in this hour and whose hour is a run hour is created; a running job
+  * Now: a job whose block starts in this hour and whose hour is a run hour (or whose start is kept) is created; a running job
     is started or stopped according to its plan; VMs are deleted once final_output_delivered.
 Every change is written to a decision log with its reason, for the Control Room.
 """
@@ -44,6 +47,7 @@ class Slot:
     end: int
     run: frozenset
     grams: float
+    commit: bool = False               # start is fixed: create at `start` even if it is a pause hour
 
 
 @dataclass
@@ -57,6 +61,8 @@ class Planner:
     zones_per_profile: int = 2
     pause: bool = True                 # False = blocks of exactly the run time (ablation)
     shift: bool = True                 # False = start as early as quota allows (ablation)
+    commit_h: int = 2                  # a planned start this close is kept, not re-optimized away (-1 = off)
+    slack_h: int = 4                   # plan to end this many hours before `margin_h`, when it fits (0 = off)
     name: str = "carbon-aware"
     placements: dict = field(default_factory=dict)    # workload id -> Placement (once created)
     vm_profile: dict = field(default_factory=dict)    # vm id -> profile id
@@ -182,21 +188,44 @@ class Planner:
             created = bool(r["assignments"])
             last = min(self.H - 1, int(math.floor(w.deadline_h - self.margin_h)) - 1)
             first = h0 if created else max(h0, int(math.ceil(w.release_h - self.spec.boot_h - 1e-9)))
+            # soft end: plan to finish early when that fits, so a created job does not drift to the deadline
+            soft = last - self.slack_h
+            old = self.plan.get(wid)
+            commit = self.commit_h >= 0 and not created and old is not None and old.start <= h0 + self.commit_h
             flex = (last - first + 1) - self._run_hours(w, r, self._fastest(w), False)
-            jobs.append((0 if created else 1, flex, wid, created, first, last))
+            # created jobs first, then kept starts (they are about to be created), then by flexibility
+            jobs.append((0 if created else 1 if commit else 2, flex, wid, created, commit, first, last, soft))
         jobs.sort()
-        plan = {}
-        for _c, _flex, wid, created, first, last in jobs:
+        prev, plan = self.plan, {}
+        for _c, _flex, wid, created, commit, first, last, soft in jobs:
             w, r = self.W[wid], rows[wid]
-            options = [self.placements[wid]] if created else self._candidates(w, est)
+            old = prev.get(wid)
+            if created:
+                options = [self.placements[wid]]
+            elif commit:      # keep the placement and start chosen when it was close: no postponing at the door
+                options, first = [old.placement], max(h0, old.start)
+            else:
+                options = self._candidates(w, est)
             best = None
-            for pl in options:
-                need = self._run_hours(w, r, pl, created)
-                lo = min(first, last)
-                b = self._best_block(w, pl, need, h0, lo, max(last, lo + math.ceil(need) - 1) if created else last,
-                                     est, cap, fixed_start=created)
-                if b and (best is None or b[0] < best[0][0] or (not self.shift and b[1] < best[0][1])):
-                    best = (b, pl)
+            for end in ([soft, last] if soft < last else [last]):
+                for pl in options:
+                    need = self._run_hours(w, r, pl, created)
+                    lo = min(first, last)
+                    if end < last and lo + math.ceil(need) - 1 > end and not created:
+                        continue                  # the soft end does not fit this placement
+                    b = self._best_block(w, pl, need, h0, lo, max(end, lo + math.ceil(need) - 1) if created else end,
+                                         est, cap, fixed_start=created or commit)
+                    if b and (best is None or b[0] < best[0][0] or (not self.shift and b[1] < best[0][1])):
+                        best = (b, pl)
+                if best:
+                    break
+            if best is None and commit:       # the committed slot no longer fits: plan it afresh
+                commit = False
+                for pl in self._candidates(w, est):
+                    b = self._best_block(w, pl, self._run_hours(w, r, pl, False), h0, max(h0, first), last,
+                                         est, cap, fixed_start=False)
+                    if b and (best is None or b[0] < best[0][0]):
+                        best = (b, pl)
             if best is None and created:       # over its deadline or squeezed: run every hour to the end
                 pl = self.placements[wid]
                 end = max(h0 + 1, min(self.H, h0 + math.ceil(self._run_hours(w, r, pl, True))))
@@ -205,7 +234,7 @@ class Planner:
                 continue
             (g, s, e, run), pl = best
             self._take(cap, pl, s, e)
-            plan[wid] = Slot(pl, s, e, run, g)
+            plan[wid] = Slot(pl, s, e, run, g, commit)
         self.plan = plan
 
     def _adopt(self, w, r):
@@ -259,12 +288,14 @@ class Planner:
             if not r["assignments"]:
                 if wid in self.placements:
                     continue                      # create sent this hour, not visible yet
-                if slot and slot.start <= hour and hour in slot.run:
+                if slot and slot.start <= hour and (hour in slot.run or slot.commit):
                     pl = slot.placement
                     check_placement(w, self.Z[pl.zone_id])        # mandatory before any create
                     self.placements[wid] = pl
                     actions += [("create", wid, pl.zone_id, pl.profile_id, i) for i in range(pl.workers)]
-                    self._log(now, wid, "create", self._why(slot, hour), zone=pl.zone_id, profile=pl.profile_id,
+                    why = (self._why(slot, hour) if hour in slot.run else
+                           "start kept from the previous plan; created now, paused until its first clean hour")
+                    self._log(now, wid, "create", why, zone=pl.zone_id, profile=pl.profile_id,
                               workers=pl.workers, block=[slot.start, slot.end], run_hours=len(slot.run),
                               est_kg=round(slot.grams / 1000, 3))
                 elif slot:
@@ -304,6 +335,7 @@ class Planner:
         """The platform refused an action (quota, limits). Forget a failed create so it is re-planned."""
         if action[0] == "create":
             self.placements.pop(action[1], None)
+            self.plan.pop(action[1], None)        # a committed slot is not re-committed
             self._plan_hour = None
         self._state.pop(action[1] if action[0] == "create" else action[2], None)
         self.decisions.append({"t": round(now, 2), "workload": action[1] if action[0] == "create" else action[2],

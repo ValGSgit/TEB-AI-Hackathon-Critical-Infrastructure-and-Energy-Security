@@ -18,6 +18,8 @@
 - **CarbonAware policy**: replans every tick over legal options and cleaner forecast windows; safety margin 1.2x, buffer 2h, min gain 3%.
 - **Experiment ladder**: baseline -> +cleanest zone -> +wait for cleaner hours -> idle-VM ablation, on the same seeds.
 - **Block**: the hours `[start, end)` a job holds quota in the real-challenge plan, running or stopped.
+- **Soft end**: `slack_h` hours before a job's latest end; the planner aims to finish by then when it fits.
+- **Kept start (commit)**: a start planned within `commit_h` hours, held at the next re-plans instead of re-optimized.
 - **Run hours**: the hours inside a block in which the job runs (the cleanest ones); in the others its VMs are stopped.
 - **Stop / resume**: a stopped VM draws no electricity and keeps all work and staged input, but still holds its quota
   and worker slot; resuming does not repeat boot or input.

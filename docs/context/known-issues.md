@@ -5,8 +5,11 @@
 - **Synthetic path still uses assumed numbers.** `catalog.py` / `scenario.py` keep their ASSUMED values for the Control
   Room samples; the real numbers live in `greenops/challenge/` via `spec.py`.
 - **Forecast horizon is 24 h.** 48 and 72 are rejected by the API. Beyond 24 h the planner guesses (blend + premium).
-- **Postponing.** Hourly re-planning can push flexible starts later until slack runs out (seen in both practice runs:
-  `w-05-eu-render` briefly blocked, finished 1.7–1.9 h before its deadline). First item in `greenops/NEXT_STEPS.md`.
+- **Postponing.** Hourly re-planning pushed flexible starts later until slack ran out (both practice runs:
+  `w-05-eu-render` briefly blocked, finished 2.0 and 1.9 h before its deadline, per `python -m greenops.analyze`).
+  Mitigated by ADR-0012 (`slack_h`, `commit_h`); quota crowding late in the run is still open.
+- **Status sampling.** `status.jsonl` is sampled once per simulated hour, so a job delivered after the last sample
+  has no `succeeded_at` there; `analyze.py` dates it by our delete decision (an upper bound).
 - **Timestamps.** The work status sends fractional seconds of any length (`…40.91+00:00`); Python < 3.11 rejects them
   in `fromisoformat`. `spec.to_h` normalizes them.
 - **Windows.** Set `PYTHONUTF8=1` (the `exoscale` package reads its spec with the default encoding), and check the

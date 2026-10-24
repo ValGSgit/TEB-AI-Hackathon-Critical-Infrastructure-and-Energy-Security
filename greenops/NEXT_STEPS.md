@@ -8,8 +8,8 @@ Written after day 1 (Fri 23 Oct 2026), after two practice runs. Start here on Sa
   run at 360×**. All 15 workloads were delivered on time, the run stayed qualified, every VM was deleted, and the
   platform refused no actions. It is **first on the preliminary leaderboard**. The carbon and score figures are on
   the run dashboard only; real-run values stay out of git (rule 2).
-- Everything is on `main`: PRs #6–#11 (#9: the controller never exits mid-run; #11: Oliver's residency/forecast tests and UI). Tests: `python -m pytest -q` from
-  `greenops/` (70 tests, about 2 min).
+- Everything is on `main`: PRs #6–#11 (#9: the controller never exits mid-run; #11: Oliver's residency/forecast
+  tests and UI). Tests: `python -m pytest -q` from `greenops/` (75 tests, about 2 min).
 - PR #5 (Oliver, `AGENTS.md` + `docs/context/`) is merged, with `docs/context/` updated for the real-challenge path
   (ADR-0007 to ADR-0010). Keep those docs current in the same commit as each change.
 
@@ -59,8 +59,8 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
   still had VMs. `spec.to_h` now accepts any fraction length.
 - **Postponing:** each hourly re-plan could push a start later (w-06: planned hour 34, created 56; w-15: 37 → 74;
   w-14: 61 → 79). Jobs ended up with zero slack, and at hours 77 and 80 `w-05-eu-render` was briefly "blocked"
-  (no quota fit before its deadline). It finished only 1.9 h before its deadline. This is the main risk to the
-  5,000-point on-time bonus.
+  (no quota fit before its deadline). It finished only 2.0 h before its deadline (`succeeded_at` in
+  `.local/run1/status.jsonl:115`). This is the main risk to the 5,000-point on-time bonus.
 
 ## Run 2 (720×, in our Docker image: the judges' setup)
 
@@ -68,18 +68,28 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
   1 GiB, credentials from `--env-file .env`, and logs mounted to `greenops/.local/run2`.
 - 15/15 delivered on time, all 15 VMs deleted, the controller ended on its own at simulated hour 117.7. No crash,
   no warnings, no refused actions. Compare its score with run 1 on the dashboard and finalize the better one.
-- The same weak spot as run 1: `w-05-eu-render` was "blocked" at hours 77 and 80 and finished 1.7 h before its
-  deadline. The postponing is systematic, not bad luck, so plan item 1 is the priority.
+- The same weak spot as run 1: `w-05-eu-render` was "blocked" at hours 77 and 80 and finished 1.9 h before its
+  deadline (`.local/run2/status.jsonl:118`). The postponing is systematic, not bad luck, so plan item 1 is the
+  priority.
+- All run figures in this file come from `python -m greenops.analyze .local/run1 .local/run2`, which cites the
+  log line behind each one. Carbon and score are only on the dashboard (by run ID), never in git.
 
 ## Plan, in order
 
-1. **Stop the postponing** (`planner.py`, `_replan` / `_best_block`).
-   - Commit to a job's start once it is within about 2 h, instead of re-optimizing it away.
-   - Floor on spare time: never plan a block that leaves less than about 25% of the job's window as slack.
-   - Keep quota headroom for the end of the run: plan the jobs that need the most quota earlier, or reserve
-     capacity in the last 24–36 h.
-   - Add an offline test in `tests/test_planner.py` that reproduces late crowding (track the minimum slack per
-     job over a `play.run`).
+1. **Stop the postponing** (`planner.py`, `_replan`): mostly done, not yet tried live.
+   - Done, `slack_h=4`: each job is planned to end 4 h before its latest end when that fits. A created job
+     that no longer fits that runs every hour instead of pausing. This is where the gain comes from: created
+     jobs stopped drifting to the deadline.
+   - Done, `commit_h=2`: a start planned within 2 h is kept (same placement and hour) and gets quota right
+     after the created jobs. Offline it changes almost nothing; it is there for the real-run start drift
+     (w-15: 37 → 74). Not a measured win.
+   - Offline, 32 seeds, old → new: mean slack of the tightest job 2.5 → 6.3 h, score −7 points (0.03%),
+     carbon +0.2%, 15/15 on time, no "blocked". Tried instead: 5% of the window and a 6 h buffer gave an
+     uneven worst case; 7–15% of the window and an 8 h buffer brought "blocked" back. Tests: seeds 11/12
+     need ≥ 5 h slack on every job and no "blocked".
+   - Open: seed 14 still delivers w-05 only 2.3 h early. It is created at hour 70 on 1 worker because quota
+     for 2 workers is taken. That is quota crowding: plan the jobs that need the most quota earlier, or
+     reserve capacity in the last 24–36 h.
 2. ~~Never exit mid-run~~: done in #9. Every error except `ResidencyViolation` is logged and retried on the
    next poll.
 3. **Check carbon offline:** `python -m greenops.play --seeds 8` before and after each change; keep 15/15 on
@@ -89,8 +99,9 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
 5. **Created jobs can adapt** (planner):
    - Add workers up to `max_workers` when slack gets low (w-06 was stuck on 1 of 2).
    - Let a created job move its run hours later; stopping costs no electricity.
-6. **Run analysis script:** read `decisions.jsonl` and `status.jsonl`, report planned vs actual starts, slack
-   over time, run/stop hours and idle VMs. It also feeds the Control Room.
+6. ~~Run analysis script~~: done, `python -m greenops.analyze .local/runN [--json]`. Per job: delivery vs
+   deadline, first planned start vs create, zone and workers, blocked/refused, idle after delivery; each with
+   its log line. Still to do: slack over time, run/stop hours, and feeding the Control Room.
 7. Ideas, if time allows: all legal zones instead of the top 2 per profile; stop extra workers once only output
    remains; use this run's own `carbon-intensity/history` to improve the estimate beyond 24 h.
 
@@ -102,7 +113,9 @@ decision feed. Still open: load a real run's `decisions.jsonl` / `status.jsonl` 
 
 - Tests for residency (every workload against all 11 zones, an adversarial create that never reaches the API)
   and for the forecast/baseline accounting.
-- Control Room UI (`ui/template.html`) fed from a run's `decisions.jsonl` / `status.jsonl`. Show a "Stopped"
+- Control Room UI (`ui/template.html`) fed from a run's `decisions.jsonl` / `status.jsonl` (`analyze.py --json`
+  is a start). Until then its numbers come from the pre-event synthetic model and old policy (assumed
+  catalog, 48 h forecasts, 3% rule): do not use them as evidence in the pitch. Show a "Stopped"
   phase, the block and run-hours explainer, a residency panel and the data we use. Only synthetic sample data
   in git.
 
