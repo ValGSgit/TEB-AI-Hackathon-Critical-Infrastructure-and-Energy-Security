@@ -6,7 +6,7 @@
 | --- | --- |
 | GitHub repository URL | https://github.com/ValGSgit/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security |
 | Full commit SHA | the `main` commit the team submits (in `greenops/.local/SESSION_HANDOFF.md`; it can't be written inside the commit itself) |
-| Claimed practice run | the finalized run of that code (see `greenops/NEXT_STEPS.md`, "Start here") |
+| Claimed practice run | practice run 12 (run ID in the form). It ran commit `0393e7f` with the command below and nothing else set; the submitted commit adds documentation only, so the image runs the same code |
 | Reproducible build and run instructions | the block below |
 
 ## Reproducible build and run instructions

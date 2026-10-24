@@ -7,7 +7,7 @@ TEB AI Hackathon: Critical Infrastructure & Energy Security · weXelerate, Vienn
 
 > Same work, same deadlines, same legal countries: **46% less carbon** than a naive scheduler
 > (offline benchmark, 8 synthetic grids, 15/15 delivered on time in every run).
-> Ten practice runs on the live platform, all qualified. Every failure we hit became a rule and a test, and the
+> Twelve practice runs on the live platform, all qualified. Every failure we hit became a rule and a test, and the
 > latest runs deliver 15/15 with every VM deleted within minutes of its delivery.
 
 **Project site: [valgsgit.github.io/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security](https://valgsgit.github.io/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security/)**, with an interactive 120-hour replay, the
@@ -164,6 +164,8 @@ Electricity is **synthetic**: 8 random grids built from generic country profiles
 | 7, 8 | 15/15 | All safety rules on: reproducible within 8 points, ~0.6% below run 2 |
 | 9 | 15/15 | `adaptive` profile: within 0.05% of run 2, with every safety net on |
 | 10 | 15/15 | `adaptive` again: same behaviour as run 9 (tightest job 2.0 h early, every VM deleted within 0.3 h) |
+| 11 | 15/15 | The submitted image and command, nothing set: one slow reply switched the stall rules on; within run-to-run noise |
+| 12 | 15/15 | The submitted image and command again: our claimed run, and the best of the submitted code |
 
 All runs stayed qualified, with no residency attempt. Speeds are 720× in our Docker image unless noted.
 Real-run carbon and scores stay on the platform dashboard, not in git, because the rules forbid committing
@@ -292,7 +294,8 @@ Form fields and paste-ready build/run instructions: [`SUBMISSION.md`](SUBMISSION
 
 - [ ] Repo access for the judges, plus the full commit SHA of the submitted version
 - [ ] Finalized run ID (the best practice run, finalized on the portal)
-- [x] Planner profile: with no `GREENOPS_PLANNER` set the image runs `adaptive` (practice runs 9 and 10)
+- [x] Planner profile: with no `GREENOPS_PLANNER` set the image runs `adaptive` (practice runs 9–12; 11 and 12 with nothing set)
+- [x] Claimed run: practice run 12, made with the `SUBMISSION.md` command on the code that is submitted
 - [ ] Container instructions: section 7 above (`docker build` / `docker run` with the five variables)
 - [ ] `git ls-files | grep -i -E "exo.*json|\.env$"` shows only `credentials.example.env`; no real-run carbon values in git
 - [ ] CI green on the submitted commit
