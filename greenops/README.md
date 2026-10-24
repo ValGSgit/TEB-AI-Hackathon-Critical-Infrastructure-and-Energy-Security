@@ -42,7 +42,7 @@ Windows checkouts.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                       # 75 tests (on Windows: set PYTHONUTF8=1 for the exoscale package)
+python -m pytest -q                       # 83 tests (on Windows: set PYTHONUTF8=1 for the exoscale package)
 python -m greenops.play --seeds 4         # policy comparison on the offline game
 python -m greenops.live --probe --out .local/probe     # read-only API checks, creates nothing
 python -m greenops.live --out .local/run1              # live run
@@ -91,11 +91,11 @@ fetches; the budget is 5 s. (Measured once, 23 Oct, commit `b695511`, before the
 | Policy | Carbon (mean ± sd) | Energy | Score | On time |
 | --- | --- | --- | --- | --- |
 | naive (first legal zone, fastest profile, start at release) | 24.63 ± 0.77 kg | 124.4 kWh | 20,323 | 15/15 |
-| + cleanest zone and efficient hardware | 14.10 ± 0.42 kg | 107.2 kWh | 21,889 | 15/15 |
-| + time shift | 14.07 ± 0.42 kg | 106.9 kWh | 21,894 | 15/15 |
-| carbon-aware (blocks with stop/resume) | 13.35 ± 0.45 kg | 107.9 kWh | 22,013 | 15/15 |
+| + cleanest zone and efficient hardware | 14.12 ± 0.43 kg | 106.7 kWh | 21,886 | 15/15 |
+| + time shift | 14.07 ± 0.43 kg | 107.3 kWh | 21,894 | 15/15 |
+| carbon-aware (blocks with stop/resume) | 13.65 ± 0.41 kg | 108.1 kWh | 21,958 | 15/15 |
 
-That is −46% against naive, mostly from *where* and *which hardware*. These are synthetic grids. `game.score()`
+That is −45% against naive, mostly from *where* and *which hardware*. These are synthetic grids. `game.score()`
 uses the greenops-score-v2 formula (see the root README), which we confirmed against the platform's
 per-workload breakdown.
 
@@ -142,7 +142,7 @@ never to one scenario.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q          # the full suite (75 tests, both paths)
+python -m pytest -q          # the full suite (83 tests, both paths)
 python compare.py 20         # policy comparison on 20 practice scenarios
 python -m greenops.experiments --seeds 12   # experiment ladder, one change at a time
 ```

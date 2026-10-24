@@ -21,6 +21,7 @@
 - **Soft end**: `slack_h` hours before a job's latest end; the planner aims to finish by then when it fits.
 - **Kept start (commit)**: a start planned within `commit_h` hours, held at the next re-plans instead of re-optimized.
 - **Urgent job**: a job that once found no slot; planned right after created jobs until it is created (ADR-0013).
+- **finish_h**: a created job with at most this many run hours left runs straight to the end (ADR-0015).
 - **Run hours**: the hours inside a block in which the job runs (the cleanest ones); in the others its VMs are stopped.
 - **Stop / resume**: a stopped VM draws no electricity and keeps all work and staged input, but still holds its quota
   and worker slot; resuming does not repeat boot or input.

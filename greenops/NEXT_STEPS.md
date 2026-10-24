@@ -9,7 +9,7 @@ Written after day 1 (Fri 23 Oct 2026), after two practice runs. Start here on Sa
   platform refused no actions. It is **first on the preliminary leaderboard**. The carbon and score figures are on
   the run dashboard only; real-run values stay out of git (rule 2).
 - Everything is on `main`: PRs #6–#11 (#9: the controller never exits mid-run; #11: Oliver's residency/forecast
-  tests and UI). Tests: `python -m pytest -q` from `greenops/` (75 tests, about 2 min).
+  tests and UI). Tests: `python -m pytest -q` from `greenops/` (83 tests, about 2 min).
 - PR #5 (Oliver, `AGENTS.md` + `docs/context/`) is merged, with `docs/context/` updated for the real-challenge path
   (ADR-0007 to ADR-0010). Keep those docs current in the same commit as each change.
 
@@ -107,6 +107,22 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
   (43 h instead of 21.5 h). Fix (fix/urgent-when-late): judge spare time on `max_workers` again (run 2's order),
   and also mark a job urgent when its only slot ends past its soft end. Offline at 240 vCPUs: 15/15 on every
   seed, less carbon than with 1 worker; at 320 vCPUs unchanged (22,010, 13.35 kg).
+
+## Run 5 (720×, Docker, commit `8e7d0bb`: run 2's order + rescue + late rule): 14/15
+
+- Same grid. **w-03-med-analysis missed its deadline** (87.9%), so no completion bonus (dashboard values in
+  `.local/run5/platform_score.txt`). Electricity was close to run 2's.
+- Cause: platform latency, not planning. Status replies took 12.2 s at the median, so the controller saw the
+  platform only every ~3 simulated hours. At hour 103.59 one reply took 65 s and the next action another 9 s.
+  w-03 had been stopped at H93.4 with ~6 run hours left; our start reached the platform at H116.6, after the
+  114 h deadline. The run also ended during that stall with five jobs' VMs not yet deleted
+  (409 "run finished").
+- Fix (fix/latency-guard, ADR-0015): `finish_h=12`. A created job with ≤ 12 run hours left runs them
+  without pauses. Offline, decisions every 3 h with a 15 h stall at hour 103: 1/12 → 12/12 grids fully on
+  time. Normal platform: −54 points (0.25%). Tried and rejected: adding the observed poll gap to every
+  deadline margin. It shrank every job's window, brought crowding back and made stalls worse.
+- Also fixed: a block for a created job could run past hour 120 and crash planning with an IndexError,
+  which live would fail every poll. Never seen live; found by the stall test.
 
 ## Plan, in order
 
