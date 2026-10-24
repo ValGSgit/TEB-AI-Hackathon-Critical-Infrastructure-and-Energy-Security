@@ -35,6 +35,7 @@ from .planner import Planner
 from .spec import load, to_h
 
 TERMINAL = {"COMPLETED", "INVALIDATED", "UNAVAILABLE"}
+STATUS_TIMEOUT_S = 30           # read timeout for the work status (connect timeout: 5 s)
 
 
 # ---------------------------------------------------------------- account and run-scoped HTTP
@@ -170,7 +171,9 @@ class Live:
         path = urlparse(self.work).path
         sig = base64.b64encode(hmac.new(self.a["secret"].encode(), "\n".join(["GET " + path, "", "", "", expires]).encode(),
                                         hashlib.sha256).digest()).decode()
-        r = self.http.get(self.work, timeout=10, allow_redirects=False, headers={
+        # run 4: the platform's reply took 10-20 s at times, so a 10 s read timeout threw away replies that were
+        # about to arrive and started over; waiting longer is the faster way to learn the state
+        r = self.http.get(self.work, timeout=(5, STATUS_TIMEOUT_S), allow_redirects=False, headers={
             "Authorization": f'EXO2-HMAC-SHA256 credential={self.a["key"]},expires={expires},signature={sig}'})
         if r.status_code == 429:
             time.sleep(min(10, max(1, int(r.headers.get("Retry-After", "1")))))
@@ -381,7 +384,7 @@ def main():
             st = view(raw)
         except Exception as e:                      # any surprise: keep managing the VMs, never exit mid-run
             print(json.dumps({"warning": f"status failed: {type(e).__name__}: {str(e)[:200]}"}))
-            time.sleep(2)
+            time.sleep(0.5)                         # retry soon: at 720x every wall second is 0.2 simulated hours
             continue
         if st["qualification"] == "DISQUALIFIED" or st["state"] in TERMINAL:
             print(json.dumps({"end": st["state"], "qualification": st["qualification"], "t": st["now_h"]}))

@@ -120,3 +120,24 @@ def test_one_forecast_fetch_per_area_per_hour_and_deletes_first(monkeypatch, tmp
     polls = [p for m, p in f.calls if p.endswith("/work/v1/status")]
     assert len(fetches) <= len(areas) * (len(polls) + 1), (len(fetches), len(polls))
     assert f.game.score()["delivered"] >= 14 and not f.game.vms, "every VM deleted at the end"
+
+
+def test_status_waits_for_a_slow_platform(monkeypatch):
+    """Run 4 lost 26 polls to a 10 s read timeout while replies took 10-20 s; the status call now waits 30 s."""
+    from greenops import live
+    seen = {}
+
+    class R:
+        status_code = 200
+        def raise_for_status(self): pass
+        def json(self): return {"ok": True}
+
+    class H:
+        def get(self, url, timeout=None, **kw):
+            seen["timeout"] = timeout
+            return R()
+
+    lv = live.Live.__new__(live.Live)
+    lv.a, lv.work, lv.http = {"key": "EXOtest", "secret": "s"}, "https://example.test/runs/r1/work/v1/status", H()
+    assert lv.status() == {"ok": True}
+    assert seen["timeout"] == (5, live.STATUS_TIMEOUT_S) and live.STATUS_TIMEOUT_S >= 25
