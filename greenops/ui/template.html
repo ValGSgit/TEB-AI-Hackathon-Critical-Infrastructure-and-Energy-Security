@@ -32,7 +32,7 @@
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-sans);font-size:14px;line-height:1.5;margin:0;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
-.wrap{max-width:1440px;margin:0 auto;display:grid;gap:16px}
+.wrap{max-width:1440px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 h1{font-size:1.45rem;font-weight:700;margin:0;letter-spacing:-.01em}
 h2{font-size:1.02rem;font-weight:600;margin:0}
 p{margin:0}
@@ -121,6 +121,34 @@ td.reason{white-space:normal;min-width:260px;color:var(--ink-2)}
 .action-filter button{font:500 .75rem var(--f-sans);color:var(--ink-2);background:transparent;border:0;border-radius:4px;padding:3px 8px;cursor:pointer}
 .action-filter button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* where the numbers come from: the poll loop, one step open at a time */
+.loop{display:grid;gap:0}
+.loop-steps{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0;counter-reset:none}
+.loop-steps button{position:relative;display:grid;gap:2px;align-content:start;text-align:left;font:inherit;color:var(--ink-2);
+  background:transparent;border:0;border-top:3px solid var(--line);padding:10px 14px 10px 0;cursor:pointer}
+.loop-steps button .n{font:600 .78rem var(--f-mono);color:var(--muted)}
+.loop-steps button .t{font-size:.86rem;font-weight:600;line-height:1.3}
+.loop-steps button:not(:last-child)::after{content:"";position:absolute;right:8px;top:-8px;width:9px;height:9px;border-top:3px solid var(--line);border-right:3px solid var(--line);transform:rotate(45deg);background:var(--surface)}
+.loop-steps button[aria-selected="true"]{border-top-color:var(--accent);color:var(--ink)}
+.loop-steps button[aria-selected="true"] .n{color:var(--accent)}
+.loop-steps button:hover .t{color:var(--ink)}
+.loop-back{display:block;width:100%;height:22px;margin-top:-4px}
+.loop-back-l{margin:0 0 10px;font-size:.76rem;color:var(--muted);text-align:center}
+.loop-detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:16px 28px;border-top:1px solid var(--line);padding-top:14px}
+.loop-detail dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:.86rem;line-height:1.55;align-content:start}
+.loop-detail dt{font-weight:600;color:var(--ink)}
+.loop-detail dd{margin:0;color:var(--ink-2)}
+.loop-detail .rule{grid-column:1/-1;border-left:3px solid var(--accent);padding:2px 0 2px 10px;color:var(--ink);font-size:.84rem}
+.loop-detail figure{margin:0;display:grid;gap:4px;min-width:0}
+.loop-detail figcaption{font-size:.76rem;color:var(--muted)}
+.loop-detail pre{margin:0;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px 12px;font:400 .76rem/1.55 var(--f-mono);color:var(--ink);overflow:auto;white-space:pre}
+.outside{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:16px 0 4px}
+.outside div{border:1px dashed var(--axis);border-radius:8px;padding:10px 14px;font-size:.84rem;line-height:1.55;color:var(--ink-2)}
+.outside b{display:block;color:var(--ink);font-size:.88rem;margin-bottom:2px}
+.from{font-size:.76rem!important;color:var(--muted)!important;margin:0}
+.h3{font-size:.9rem;font-weight:600;margin:12px 0 0}
+@media (max-width:860px){.loop-steps{grid-template-columns:repeat(3,minmax(0,1fr))}.loop-back,.loop-back-l{display:none}.loop-detail{grid-template-columns:1fr}}
+@media (max-width:520px){.loop-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 
 <header class="top"><div class="in">
@@ -144,11 +172,21 @@ td.reason{white-space:normal;min-width:260px;color:var(--ink-2)}
 
   <section class="card" aria-labelledby="h-data">
     <div class="card-h">
-      <div style="display:grid;gap:2px"><h2 id="h-data">Data we use</h2>
-        <p>Only this run&rsquo;s published grid forecasts (horizonHours 6 or 24) and its own observations. No actuals from other runs, no future values, no cross-run caches. Never commit carbon values from a real run.</p></div>
+      <div style="display:grid;gap:2px"><h2 id="h-data">Where the numbers come from</h2>
+        <p id="loopNote"></p></div>
     </div>
-    <div class="fcast-grid" id="dataGrid"></div>
-    <p class="foot" style="margin-top:4px">Source: the <code>grid</code> API endpoint for the current run only. The planner calls <code>forecast(area, now)</code> every simulated hour; beyond 24 h it blends the last forecast day&rsquo;s mean with a 10&percnt; risk premium.</p>
+    <div class="loop">
+      <div class="loop-steps" role="tablist" aria-label="Steps of one poll" id="loopSteps"></div>
+      <svg class="loop-back" viewBox="0 0 600 22" preserveAspectRatio="none" aria-hidden="true"><path d="M590 2 V12 Q590 20 582 20 H18 Q10 20 10 12 V2" fill="none" stroke="var(--axis)" stroke-width="1.5" vector-effect="non-scaling-stroke"/><path d="M5 7 L10 1 L15 7" fill="none" stroke="var(--axis)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
+      <p class="loop-back-l">then again, about once per wall second</p>
+      <div class="loop-detail" role="tabpanel" id="loopDetail" aria-live="polite"></div>
+    </div>
+    <div class="outside" id="loopOutside"></div>
+    <div style="display:grid;gap:6px">
+      <h3 class="h3">Forecast published now, per country</h3>
+      <div class="fcast-grid" id="dataGrid"></div>
+      <p class="foot">Mean of the latest 24-hour forecast in this run&rsquo;s data. In a live run these come from step 2, for this run only.</p>
+    </div>
   </section>
 
   <section class="card" aria-labelledby="h-explain">
@@ -163,13 +201,16 @@ td.reason{white-space:normal;min-width:260px;color:var(--ink-2)}
   <section class="card" aria-labelledby="h-gantt">
     <div class="card-h">
       <div style="display:grid;gap:2px"><h2 id="h-gantt">Allocation timeline</h2>
-        <p>When each workload ran, where, and in which phase. Hatched: released but deliberately waiting for cleaner power. "no ckpt": restart-sensitive, loses all progress if stopped. Click a row for details.</p></div>
+        <p>When each workload ran, where, and in which phase. Blue hatching inside a bar: the VM was stopped through dirtier hours (no power, quota kept). Grey hatching before a bar: released, but the planner waited for cleaner hours or free quota. The thin line above a row is the block of hours it booked. "no ckpt": restart-sensitive, loses all progress if stopped. Click a row for details.</p>
+        <p class="from">From: the planner's decisions and the offline game's phases per VM (in a live run: the work status, step 1).</p></div>
       <div class="legend">
         <span><i class="sw" style="background:var(--boot)"></i>Booting</span>
         <span><i class="sw" style="background:var(--setup)"></i>Input/setup</span>
         <span><i class="sw" style="background:var(--run)"></i>Computing</span>
         <span><i class="sw" style="background:var(--deliver)"></i>Output waiting</span>
-        <span><svg width="14" height="10" aria-hidden="true"><rect width="14" height="10" fill="url(#hatchL)" stroke="var(--axis)"/></svg>Waiting</span>
+        <span><svg width="14" height="10" aria-hidden="true"><rect width="14" height="10" fill="url(#hatchS)"/></svg>Stopped (dirty hour)</span>
+        <span><i class="sw" style="background:var(--idle)"></i>Idle until deleted</span>
+        <span><svg width="14" height="10" aria-hidden="true"><rect width="14" height="10" fill="url(#hatchL)" stroke="var(--axis)"/></svg>Released, not started yet</span>
         <span><svg width="10" height="12" aria-hidden="true"><path d="M5 0V12" stroke="var(--crit)" stroke-width="2"/></svg>Deadline</span>
       </div>
     </div>
@@ -179,17 +220,19 @@ td.reason{white-space:normal;min-width:260px;color:var(--ink-2)}
   <section class="card" aria-labelledby="h-ladder" id="ladderCard">
     <div class="card-h">
       <div style="display:grid;gap:2px"><h2 id="h-ladder">Experiment ladder</h2>
-        <p>One change at a time, each on the same practice scenarios, so the difference comes from the policy. Bars: average realized carbon.</p></div>
+        <p>One change at a time, each on the same synthetic grids, so the difference comes from the policy. Bars: average carbon per run.</p>
+        <p class="from" id="ladderSrc"></p></div>
       <span class="eyebrow" id="ladderNote"></span>
     </div>
-    <div class="scroll"><table class="ladder"><thead><tr><th>Step</th><th>What changed</th><th style="min-width:220px">Average carbon</th><th class="r">vs baseline</th><th class="r">Energy</th><th class="r">Score (stand-in)</th><th class="r">All on time</th></tr></thead><tbody id="ladder"></tbody></table></div>
+    <div class="scroll"><table class="ladder"><thead><tr><th>Step</th><th>What changed</th><th style="min-width:220px">Average carbon</th><th class="r">vs baseline</th><th class="r">Energy</th><th class="r" id="ladderScoreH">Score</th><th class="r">All on time</th></tr></thead><tbody id="ladder"></tbody></table></div>
   </section>
 
   <section class="grid2">
     <div class="card" aria-labelledby="h-heat">
       <div class="card-h">
         <div style="display:grid;gap:2px"><h2 id="h-heat">Carbon intensity by zone</h2>
-          <p>Actual grid intensity per hour. Bars under each row show when this run was computing there.</p></div>
+          <p>Grid intensity per hour in each zone&rsquo;s country. Bars under each row show when this run was computing there.</p>
+          <p class="from">From: the offline game&rsquo;s synthetic grid. The planner never sees these values, only the forecasts.</p></div>
         <div class="legend" id="heatLegend"></div>
       </div>
       <div class="scroll" id="heat"></div>
@@ -212,36 +255,36 @@ td.reason{white-space:normal;min-width:260px;color:var(--ink-2)}
   <section class="card" aria-labelledby="h-fc">
     <div class="card-h">
       <div style="display:grid;gap:2px"><h2 id="h-fc">Forecast vs what happened</h2>
-        <p>The planner only sees the forecast issued at the current hour. Move the issue time to see how far ahead it stays useful.</p></div>
+        <p>The planner only sees the forecast issued at the current hour. Move the issue time to see how far ahead it stays useful.</p><p class="from">From: the grid forecast (step 2) issued at that hour, against the offline grid's actual values. A live run only ever sees the forecast.</p></div>
       <div class="ctrls">
         <label for="fcZone">Zone <select id="fcZone"></select></label>
         <label for="fcIssue">Issued at hour <input type="range" id="fcIssue" min="0" max="114" step="6" value="0"> <span class="num" id="fcIssueV">0</span></label>
       </div>
     </div>
-    <div class="legend"><span><i class="ln" style="border-color:var(--run)"></i>Actual intensity</span><span><i class="ln" style="border-color:var(--setup);border-top-style:dashed"></i>Forecast, 48 h</span></div>
+    <div class="legend"><span><i class="ln" style="border-color:var(--run)"></i>Actual intensity</span><span><i class="ln" style="border-color:var(--setup);border-top-style:dashed"></i>Forecast, <span id="fcH">24</span> h</span></div>
     <div class="scroll" id="fc"></div>
   </section>
 
   <section class="grid2b">
     <div class="card" aria-labelledby="h-cum">
-      <div class="card-h"><div style="display:grid;gap:2px"><h2 id="h-cum">Cumulative carbon</h2><p>Same workloads, same quotas, two policies.</p></div>
-        <div class="legend"><span><i class="ln" style="border-color:var(--run)"></i>Carbon-aware</span><span><i class="ln" style="border-color:var(--base)"></i>Baseline</span></div></div>
+      <div class="card-h"><div style="display:grid;gap:2px"><h2 id="h-cum">Cumulative carbon</h2><p>Same workloads, same quotas, two policies.</p><p class="from">From: the offline game's electricity accounting (kW &times; PUE &times; g/kWh, every 5 simulated minutes). Real carbon: platform dashboard only.</p></div>
+        <div class="legend"><span><i class="ln" style="border-color:var(--run)"></i>Our planner</span><span><i class="ln" style="border-color:var(--base)"></i>Naive scheduler</span></div></div>
       <div id="cum"></div>
     </div>
     <div class="card" aria-labelledby="h-dumb">
-      <div class="card-h"><div style="display:grid;gap:2px"><h2 id="h-dumb">Carbon per workload</h2><p>Sorted by saving. The line shows how much each job saved.</p></div>
-        <div class="legend"><span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--run)"/></svg>Carbon-aware</span><span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--base)"/></svg>Baseline</span></div></div>
+      <div class="card-h"><div style="display:grid;gap:2px"><h2 id="h-dumb">Carbon per workload</h2><p>Sorted by saving. The line shows how much each job saved.</p><p class="from">From: the same accounting, per workload.</p></div>
+        <div class="legend"><span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--run)"/></svg>Our planner</span><span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--base)"/></svg>Naive scheduler</span></div></div>
       <div id="dumb"></div>
     </div>
   </section>
 
   <section class="grid2b">
     <div class="card" aria-labelledby="h-quota">
-      <div class="card-h"><div style="display:grid;gap:2px"><h2 id="h-quota">Shared quota use</h2><p>Dashed line: the limit. Idle VMs count until deleted.</p></div></div>
+      <div class="card-h"><div style="display:grid;gap:2px"><h2 id="h-quota">Shared quota use</h2><p>Dashed line: the limit. Idle VMs count until deleted.</p><p class="from">From: the VMs alive at each hour (work status, step 1) and the quotas in the challenge spec (step 3).</p></div></div>
       <div id="quota" style="display:grid;gap:10px"></div>
     </div>
     <div class="card" aria-labelledby="h-res">
-      <div class="card-h"><div style="display:grid;gap:2px"><h2 id="h-res">Residency check</h2><p>A placement outside the allowed countries disqualifies the run, even if the API rejects it.</p></div>
+      <div class="card-h"><div style="display:grid;gap:2px"><h2 id="h-res">Residency check</h2><p>A placement outside the allowed countries disqualifies the run, even if the API rejects it.</p><p class="from">From: each VM's zone (step 1) against the workload's allowed countries (step 3).</p></div>
         <span id="resPill"></span></div>
       <div class="legend"><span><i class="sw" style="background:var(--run)"></i>Used</span><span><i class="sw" style="background:var(--accent-soft);outline:1px solid var(--line)"></i>Allowed</span><span><i class="sw" style="background:transparent;outline:1px solid var(--line)"></i>Forbidden</span></div>
       <div class="scroll" id="res"></div>
@@ -249,7 +292,7 @@ td.reason{white-space:normal;min-width:260px;color:var(--ink-2)}
   </section>
 
   <section class="card" aria-labelledby="h-log">
-    <div class="card-h"><div style="display:grid;gap:2px"><h2 id="h-log">Decision feed</h2><p>Every action the planner takes, with zone, block, run hours and estimated carbon. Filter by action type above the table. Click a workload in the timeline to filter to that job.</p></div>
+    <div class="card-h"><div style="display:grid;gap:2px"><h2 id="h-log">Decision feed</h2><p>Every action the planner takes, with zone, block, run hours and estimated carbon. Filter by action type above the table. Click a workload in the timeline to filter to that job.</p><p class="from">From: the planner's decision log (step 6), the same format as decisions.jsonl from a live run.</p></div>
       <div class="ctrls"><label for="logAll"><input type="checkbox" id="logAll"> Show all workloads</label></div></div>
     <div class="logbox"><table><thead><tr><th>Hour</th><th>Workload</th><th>Action</th><th>Zone</th><th>VMs</th><th class="r">Block</th><th class="r">Run h</th><th class="r">Est. kg</th><th>Reason</th></tr></thead><tbody id="log"></tbody></table></div>
   </section>
@@ -259,16 +302,20 @@ td.reason{white-space:normal;min-width:260px;color:var(--ink-2)}
 <div id="tip" role="tooltip"></div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
   <pattern id="hatchL" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--surface)"/><line x1="0" y1="0" x2="0" y2="6" stroke="var(--axis)" stroke-width="2"/></pattern>
+  <pattern id="hatchS" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="var(--band)"/><line x1="0" y1="0" x2="0" y2="5" stroke="var(--run)" stroke-width="1.4" opacity=".55"/></pattern>
 </defs></svg>
 
 <script type="application/json" id="run-data">/*__DATA__*/</script>
 <script type="application/json" id="exp-data">/*__EXP__*/</script>
+<script type="application/json" id="src-data">/*__SOURCES__*/</script>
 <script>
 "use strict";
 const NS = "http://www.w3.org/2000/svg";
 const $ = id => document.getElementById(id);
 const PHASE = {booting:{c:"var(--boot)",n:"Booting"}, setup:{c:"var(--setup)",n:"Input/setup"}, running:{c:"var(--run)",n:"Computing"},
-               delivering:{c:"var(--deliver)",n:"Output waiting"}, done:{c:"var(--idle)",n:"Idle (not yet deleted)"}, stopped:{c:"var(--idle)",n:"Stopped"}};
+               delivering:{c:"var(--deliver)",n:"Output waiting"}, done:{c:"var(--idle)",n:"Idle (not yet deleted)"},
+               stopped:{c:"url(#hatchS)",n:"Stopped (no power, keeps quota)"}, waiting:{c:"var(--boot)",n:"Waiting for release"}};
+const POLICY = p => p==="carbon-aware"?"Our planner":p==="baseline"||p==="naive"?"Naive scheduler":p;
 let D = null, runIdx = 0, sel = null, E = null;
 try{ const raw=document.getElementById("exp-data").textContent.trim(); if(raw && !raw.startsWith("/*")) E=JSON.parse(raw); }catch(e){ E=null; }
 
@@ -303,7 +350,7 @@ function hideTip(){ tip.style.display="none"; }
 function renderHeader(){
   $("src").textContent = `${D.source} · seed ${D.seed} · ${D.workloads.length} workloads · ${D.zones.length} zones · ${D.horizon_h} h`;
   const seg=$("policySeg"); seg.textContent="";
-  D.runs.forEach((r,i)=>{ const b=h("button",{type:"button","aria-pressed":String(i===runIdx)},seg, r.policy==="carbon-aware"?"Carbon-aware":r.policy==="baseline"?"Baseline":r.policy);
+  D.runs.forEach((r,i)=>{ const b=h("button",{type:"button","aria-pressed":String(i===runIdx)},seg, POLICY(r.policy));
     b.onclick=()=>{ runIdx=i; renderAll(); }; });
 }
 function kpi(parent, label, value, deltaEl){
@@ -312,7 +359,7 @@ function kpi(parent, label, value, deltaEl){
 }
 function renderKPIs(){
   const r=run(), o=other(), box=$("kpis"); box.textContent="";
-  const sc=r.score, os=o.score, oname=o.policy==="baseline"?"baseline":o.policy;
+  const sc=r.score, os=o.score, oname=POLICY(o.policy).toLowerCase();
   // Carbon saving %
   const carbonPct = os.carbon_kg ? ((os.carbon_kg - sc.carbon_kg) / os.carbon_kg * 100) : 0;
   // Currently active VMs
@@ -324,18 +371,20 @@ function renderKPIs(){
   const lastSegment = r.segments[r.segments.length - 1];
   const runHour = lastSegment ? Math.round(lastSegment.end) : 0;
 
-  kpi(box,"Score (stand-in)", sc.score!=null? sc.score.toLocaleString("en"):"–", d=>{
+  kpi(box,D.score_label||"Score (stand-in)", sc.score!=null? sc.score.toLocaleString("en"):"–", d=>{
     const diff=(sc.score||0)-(os.score||0); h("span",{class:"pill "+(diff>=0?"good":"crit")},d,(diff>=0?"▲ ":"▼ ")+Math.abs(diff).toLocaleString("en")); d.appendChild(document.createTextNode(" vs "+oname)); });
   kpi(box,"Realized carbon", fk(sc.carbon_kg)+" kg", d=>{
-    const pillCls = carbonPct <= 0 ? "good" : "crit";
-    const arrow = carbonPct <= 0 ? "▼" : "▲";
-    h("span",{class:"pill "+pillCls},d,`${arrow} ${Math.abs(carbonPct).toFixed(0)}%`);
-    d.appendChild(document.createTextNode(" saving vs "+oname)); });
+    // carbonPct > 0 means this run emitted less than the other one
+    h("span",{class:"pill "+(carbonPct >= 0 ? "good" : "crit")},d,`${carbonPct >= 0 ? "▼" : "▲"} ${Math.abs(carbonPct).toFixed(0)}%`);
+    d.appendChild(document.createTextNode((carbonPct >= 0 ? " less than " : " more than ")+oname)); });
   kpi(box,"Delivered on time", `${sc.delivered}/${sc.of}`, d=>{
     h("span",{class:"pill "+(sc.all_done_bonus?"good":"warn")},d, sc.all_done_bonus?"✓ +5,000 bonus":"bonus missed"); });
   kpi(box,"Qualification", "Qualified", d=>{
     h("span",{class:"pill good"},d,"✓ no residency violations"); });
-  kpi(box,"Run progress", `${runHour}/120 h`, d=>{
+  const tight=Object.entries(r.workloads).filter(([,w])=>w.slack_h!=null).sort((a,b)=>a[1].slack_h-b[1].slack_h)[0];
+  if(tight) kpi(box,"Closest to its deadline", `${f1(tight[1].slack_h)} h early`, d=>{
+    h("span",{class:"pill "+(tight[1].slack_h>=4?"good":"warn")},d, tight[0]); });
+  else kpi(box,"Run progress", `${runHour}/120 h`, d=>{
     h("span",{class:"pill neutral"},d, Math.round(runHour/120*100)+"% of horizon"); });
 }
 
@@ -446,6 +495,7 @@ function renderHeat(){
 
 /* ---------- detail ---------- */
 function reasonFor(w, wr, decs){
+  if(decs.some(d=>d.action)) return reasonFromLog(w, wr, decs);
   if(wr.first_start==null) return "Not started: no option could finish before the deadline, so it was skipped instead of burning carbon for nothing.";
   const zone=wr.zones_used.join(", ");
   const pct=d=>d.carbon_now_g>0?Math.round((1-d.carbon_best_g/d.carbon_now_g)*100):0;
@@ -465,6 +515,23 @@ function reasonFor(w, wr, decs){
     : `Started right after release in ${zone}: the forecast showed no window more than 3% cleaner within the time available.`;
   return `Started at release in ${zone}.`;
 }
+function reasonFromLog(w, wr, decs){
+  // the planner's own decisions.jsonl lines, as written in a live run
+  const plan=decs.find(d=>d.action==="wait"), mk=decs.find(d=>d.action==="create");
+  const pauses=decs.filter(d=>d.action==="pause").length, blocked=decs.filter(d=>d.action==="blocked").length;
+  if(!mk) return blocked ? `Never started: no zone, machine and block fitted the quota before its deadline (logged as "blocked" ${blocked}×).`
+                         : "Never started.";
+  let t="";
+  const m=plan && /hour (\d+)/.exec(plan.reason||"");
+  if(m) t+=`At ${hr(plan.t)} the planner booked its start for hour ${m[1]}, because those hours were cleaner or had free quota. `;
+  t+=`It was created at ${hr(mk.t)} in ${mk.zone} on ${mk.workers} worker${mk.workers>1?"s":""}`;
+  if(mk.block) t+=`, holding quota for hours ${mk.block[0]} to ${mk.block[1]}`;
+  t+=". ";
+  if(pauses) t+=`It was stopped ${pauses}× through dirtier hours and resumed in cleaner ones. `;
+  if(blocked) t+=`Before that it found no room ${blocked}×. `;
+  if(wr.delivered_at!=null) t+=`Delivered at ${hr(wr.delivered_at)}`+(wr.slack_h!=null?`, ${f1(wr.slack_h)} h before its deadline.`:".");
+  return t;
+}
 function renderDetail(){
   const box=$("detail"); box.textContent="";
   if(!sel){ $("detailId").textContent=""; h("div",{class:"empty"},box,"Click a workload in the timeline to see its constraints, outcome and the reason for when and where it ran."); return; }
@@ -480,7 +547,8 @@ function renderDetail(){
   row("Work",v=>v.textContent=`${w.work_units} units · setup ${w.setup_h} h · output ${w.output_h} h`);
   row("Restarts",v=>v.textContent= w.checkpoint_h==null? "Restart-sensitive: all progress lost if stopped" : `Checkpoint every ${w.checkpoint_h} h`);
   row("Allowed",v=>{ const c=h("div",{class:"chips"},v); [...new Set(D.zones.map(z=>z.country))].forEach(cc=>{ if(w.allowed_countries.includes(cc)) h("span",{class:"chip"+(wr.zones_used.some(zid=>D.zones.find(z=>z.id===zid).country===cc)?" on":"")},c,cc); }); });
-  row("Plan changes",v=>v.textContent=`${decs.length} (see decision log)`);
+  if(wr.slack_h!=null) row("Finished",v=>{ v.className="num"; v.textContent=`${f1(wr.slack_h)} h before the deadline`; });
+  row("Plan changes",v=>v.textContent=`${decs.length} (see decision feed)`);
 }
 
 /* ---------- forecast ---------- */
@@ -496,7 +564,7 @@ function renderFc(){
   const step=niceStep(maxV);
   for(let v=0;v<=maxV;v+=step){ s("line",{x1:L,x2:Wd-R,y1:Y(v),y2:Y(v),stroke:"var(--line)"},svg); s("text",{x:L-6,y:Y(v)+3,"text-anchor":"end",class:"tick"},svg,v); }
   for(let t=0;t<=D.horizon_h;t+=24) s("text",{x:X(t),y:Hh-6,"text-anchor":t===0?"start":"middle",class:"tick"},svg,`D${t/24+1}`);
-  s("rect",{x:X(issue),y:top,width:X(Math.min(D.horizon_h,issue+48))-X(issue),height:Hh-top-B,fill:"var(--band)"},svg);
+  s("rect",{x:X(issue),y:top,width:X(Math.min(D.horizon_h,issue+(D.forecast_h||48)))-X(issue),height:Hh-top-B,fill:"var(--band)"},svg);
   s("line",{x1:X(issue),x2:X(issue),y1:top,y2:Hh-B,stroke:"var(--ink-2)","stroke-dasharray":"2 3"},svg);
   s("text",{x:X(issue)+4,y:top+10,"font-size":11},svg,"forecast issued");
   s("path",{d:act.map((v,t)=>(t?"L":"M")+X(t).toFixed(1)+" "+Y(v).toFixed(1)).join(""),fill:"none",stroke:"var(--run)","stroke-width":2},svg);
@@ -517,7 +585,7 @@ function crosshair(svg,x0,x1,y0,y1,X,read){
 /* ---------- cumulative + dumbbell ---------- */
 function renderCum(){
   const host=$("cum"); host.textContent="";
-  const ca=D.runs.find(r=>r.policy==="carbon-aware"), bl=D.runs.find(r=>r.policy==="baseline"); if(!ca||!bl) return;
+  const ca=D.runs.find(r=>r.policy==="carbon-aware"), bl=D.runs.find(r=>r.policy==="baseline"||r.policy==="naive"); if(!ca||!bl) return;
   const Wd=Math.max(320,host.clientWidth||500), L=40, R=70, top=10, Hh=230, B=24;
   const X=t=>L+(t/D.horizon_h)*(Wd-L-R);
   const maxV=Math.max(...bl.carbon_series.map(p=>p.carbon_kg),...ca.carbon_series.map(p=>p.carbon_kg))*1.08;
@@ -534,7 +602,7 @@ function renderCum(){
 }
 function renderDumb(){
   const host=$("dumb"); host.textContent="";
-  const ca=D.runs.find(r=>r.policy==="carbon-aware"), bl=D.runs.find(r=>r.policy==="baseline"); if(!ca||!bl) return;
+  const ca=D.runs.find(r=>r.policy==="carbon-aware"), bl=D.runs.find(r=>r.policy==="baseline"||r.policy==="naive"); if(!ca||!bl) return;
   const rows=D.workloads.map(w=>({id:w.id,a:ca.workloads[w.id].carbon_kg,b:bl.workloads[w.id].carbon_kg})).sort((p,q)=>(q.b-q.a)-(p.b-p.a));
   const Wd=Math.max(320,host.clientWidth||500), L=52, R=74, rowH=16, top=6, Hh=top+rows.length*rowH+22;
   const maxV=Math.max(...rows.map(r=>Math.max(r.a,r.b)))*1.05; const X=v=>L+(v/maxV)*(Wd-L-R);
@@ -652,14 +720,14 @@ function renderLogRows(decs){
 function renderLadder(){
   const card=$("ladderCard"), tb=$("ladder"); tb.textContent="";
   if(!E || !E.rungs){ card.hidden=true; return; } card.hidden=false;
-  $("ladderNote").textContent=`${E.seeds} practice scenarios`;
+  $("ladderNote").textContent=`${E.seeds} synthetic grids`; if(E.note) $("ladderSrc").textContent="From: "+E.note;
   const base=E.rungs[0], maxC=Math.max(...E.rungs.map(r=>r.carbon_mean||0));
   E.rungs.forEach((r,i)=>{
     const tr=h("tr",{},tb);
     const td0=h("td",{},tr); h("div",{style:"font-weight:600"},td0,r.label); h("div",{class:"mono muted",style:"font-size:.72rem"},td0,`step ${i}`);
     h("td",{class:"chg"},tr,r.change);
     const tdb=h("td",{},tr), lb=h("div",{class:"lbar"},tdb);
-    const col = r.key==="baseline" ? "var(--base)" : r.key==="no-cleanup" ? "var(--setup)" : "var(--run)";
+    const col = r.key==="baseline"||r.key==="naive" ? "var(--base)" : r.key==="no-cleanup" ? "var(--setup)" : "var(--run)";
     h("i",{style:`width:${Math.max(2,(r.carbon_mean/maxC)*180)}px;background:${col}`},lb); h("span",{},lb,`${r.carbon_mean.toFixed(1)} kg`);
     const pct=base.carbon_mean? (r.carbon_mean/base.carbon_mean-1)*100 : 0;
     const tdp=h("td",{class:"r"},tr); if(i===0) tdp.textContent="–"; else h("span",{class:"pill "+(pct<=0?"good":"crit")},tdp,(pct<=0?"▼ ":"▲ ")+Math.abs(pct).toFixed(0)+"%");
@@ -710,13 +778,39 @@ function renderLand(){
   const b2=h("span",{},lg); const sv2=s("svg",{width:12,height:12},b2); s("circle",{cx:6,cy:6,r:4.5,fill:"var(--ink)"},sv2); b2.appendChild(document.createTextNode(run().policy==="baseline"?"where the baseline started":"where it really started"));
 }
 
+
+/* ---------- where the numbers come from ---------- */
+let SRC=null, srcSel=0;
+try{ const raw=document.getElementById("src-data").textContent.trim(); if(raw && !raw.startsWith("/*")) SRC=JSON.parse(raw); }catch(e){ SRC=null; }
+function renderSources(){
+  const steps=$("loopSteps"), det=$("loopDetail"), out=$("loopOutside");
+  if(!SRC){ $("h-data").closest(".card").querySelector(".loop").hidden=true; return; }
+  $("loopNote").textContent=SRC.loop_note+" "+SRC.example_note;
+  steps.textContent="";
+  SRC.steps.forEach((st,i)=>{
+    const b=h("button",{type:"button",role:"tab",id:"step-"+st.key,"aria-selected":String(i===srcSel),"aria-controls":"loopDetail",tabindex:i===srcSel?"0":"-1"},steps);
+    h("span",{class:"n"},b,String(st.n)); h("span",{class:"t"},b,st.name);
+    b.onclick=()=>{ srcSel=i; renderSources(); $("step-"+st.key).focus(); };
+    b.onkeydown=e=>{ const k={ArrowRight:1,ArrowLeft:-1}[e.key]; if(k){ e.preventDefault(); srcSel=(srcSel+k+SRC.steps.length)%SRC.steps.length; renderSources(); $("step-"+SRC.steps[srcSel].key).focus(); } };
+  });
+  const st=SRC.steps[srcSel]; det.textContent=""; det.setAttribute("aria-labelledby","step-"+st.key);
+  const dl=h("dl",{},det);
+  [["What",st.what],["Where",st.where],["How we use it",st.how]].forEach(([k,v])=>{ h("dt",{},dl,k); h("dd",{},dl,v); });
+  if(st.rule) h("dd",{class:"rule"},dl,st.rule);
+  const fig=h("figure",{},det); h("figcaption",{},fig,st.example_label||"Example"); h("pre",{},fig,st.example);
+  out.textContent="";
+  (SRC.outside||[]).forEach(o=>{ const d=h("div",{},out); h("b",{},d,o.name); d.appendChild(document.createTextNode(`${o.what} From: ${o.where} ${o.how}`)); });
+}
 /* ---------- glue ---------- */
 function renderSelectionDependent(){ renderGantt(); renderHeat(); renderDetail(); renderLand(); renderDumb(); renderRes(); renderLog();
   if(sel){ const z=run().workloads[sel].zones_used[0]; if(z){ $("fcZone").value=z; renderFc(); } } }
 function renderAll(){
-  renderHeader(); renderKPIs(); renderDataGrid(); renderGantt(); renderLadder(); renderHeat(); renderDetail(); renderLand(); renderFc(); renderCum(); renderDumb(); renderQuota(); renderRes(); renderLog();
-  $("foot").textContent = `Source: ${D.source}. Score uses a stand-in formula until the organizers' frozen scoring policy is plugged in; carbon, timing and placements come from the run itself. `
-    + `Schema v${D.schema}. Load another run with "Load run JSON" (python -m greenops.export --seed N) or decisions from a live run with "Load decisions".`;
+  renderHeader(); renderKPIs(); renderSources(); renderDataGrid(); renderGantt(); renderLadder(); renderHeat(); renderDetail(); renderLand(); renderFc(); renderCum(); renderDumb(); renderQuota(); renderRes(); renderLog();
+  $("foot").textContent = `Source: ${D.source}. ${D.score_note||"Score uses a stand-in formula; carbon, timing and placements come from the run itself."} `
+    + `Schema v${D.schema}. Rebuild with "python -m greenops.export_game --seed N" or load decisions.jsonl from a live run with "Load decisions".`;
+  $("fcH").textContent = D.forecast_h || 48;
+  $("ladderScoreH").textContent = D.score_label || "Score";
+  $("h-land").closest(".card").style.display = D.landscapes ? "" : "none";
 }
 function init(data){
   D=data; runIdx=0; sel=null;

@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "loop_note": "The controller repeats these steps about once per wall second. At the judged 720x speed that is every 12 simulated minutes, so a slow step costs real simulated time.",
+  "example_note": "Examples show the real message format. Values marked as examples are made up; the challenge rules forbid publishing a scenario's real electricity data.",
+  "steps": [
+    {
+      "key": "status",
+      "n": 1,
+      "name": "Read the work status",
+      "what": "The simulated clock, each workload's progress and its VMs with their state (creating, running, stopped), and whether its final output is delivered.",
+      "where": "GET /runs/{run}/work/v1/status, signed with the run's API key (EXO2-HMAC-SHA256). Read by live.py, Live.status().",
+      "how": "Decides what is done and what still has to run. A delivered workload's VMs are deleted in the same poll, before anything slower, because idle VMs keep drawing power.",
+      "lang": "json",
+      "example": "{\n  \"virtual_time\": \"2025-10-02T09:00:00Z\",\n  \"state\": \"RUNNING\", \"qualification\": \"QUALIFIED\",\n  \"workloads\": [{\n    \"id\": \"w-05-eu-render\",\n    \"state\": \"running\",\n    \"required_work\": \"1440\", \"completed_work\": \"612.5\",\n    \"final_output_delivered\": false,\n    \"assignments\": [\n      {\"vm_id\": \"(example)\", \"zone\": \"fr-par-1\", \"state\": \"running\"}\n    ]\n  }]\n}",
+      "example_label": "Example values"
+    },
+    {
+      "key": "forecast",
+      "n": 2,
+      "name": "Read the grid forecast",
+      "what": "The run's own published forecast of grid carbon intensity, in grams of CO2e per kWh, one value per hour for the next 24 hours, per country.",
+      "where": "GET /runs/{run}/grid/v4/carbon-intensity/forecast?zone=AT&horizonHours=24, with the run's grid token. Fetched for all 8 countries in parallel once per simulated hour and cached (Live.prefetch).",
+      "how": "Prices every hour: running a job for an hour costs its kW x the zone's PUE x the forecast g/kWh. Beyond 24 hours the planner uses a blend of the forecast's same hour and its mean, plus a 10% premium, so a known clean hour beats a guess.",
+      "lang": "json",
+      "example": "{\n  \"zone\": \"AT\",\n  \"forecast\": [\n    {\"datetime\": \"2025-10-02T09:00:00Z\", \"carbonIntensity\": 182.0},\n    {\"datetime\": \"2025-10-02T10:00:00Z\", \"carbonIntensity\": 164.5},\n    {\"datetime\": \"2025-10-02T11:00:00Z\", \"carbonIntensity\": 151.2}\n  ]\n}",
+      "example_label": "Example values",
+      "rule": "Rule 2: only this run's published forecasts. Never actual values, never another run's data."
+    },
+    {
+      "key": "spec",
+      "n": 3,
+      "name": "Look up the challenge spec",
+      "what": "The 15 workloads (release, deadline, work, setup, output, workers, allowed countries), the 11 zones and their PUE, the machine profiles (power, speed, GPU), the shared quotas and the score constants.",
+      "where": "greenops/challenge/*.json, copied from the organizers' public starter kit (commit a1dd55e) and checked against the SHA-256 values in manifest.json on every load (spec.py).",
+      "how": "Sets the hard limits: legal zones per workload, 20 VMs and 320 vCPUs shared, GPU cards per family, and each job's window. The residency guard reads the allowed countries from here.",
+      "lang": "text",
+      "example": "w-05-eu-render  Parallel European rendering\n  release      hour 18\n  deadline     hour 118\n  work         1440 vCPU-hours, up to 10 workers\n  setup 0.25 h, output 0.5 h, checkpoint every 0.5 h\n  allowed      AT BG DE ES FR HR IT\n\nquotas         20 VMs, 320 vCPUs, 8 cards per GPU family (4 RTX PRO 6000)\nscore          20,000 base points + 5,000 if every job is on time\nPUE            de-fra-1 1.20 ... fr-par-1 1.52",
+      "example_label": "Real values from the public spec"
+    },
+    {
+      "key": "plan",
+      "n": 4,
+      "name": "Plan every job",
+      "what": "For each unfinished job: a zone, a machine type, a number of workers, a block of hours, and the cleanest hours inside the block to run in.",
+      "where": "greenops/planner.py, once per simulated hour (and right away after a refused action).",
+      "how": "Jobs are planned in order: already running, then any job that once found no room (so none can starve), then the least flexible. Each job's block holds quota for every hour, because a stopped VM keeps its quota. Every zone is checked against the job's allowed countries, here and again right before the API call.",
+      "lang": "text",
+      "example": "w-13-regional-index\n  zone         at-vie-2 (AT, allowed: AT DE HR)\n  machine      2 workers of the same CPU type\n  block        hours 77 to 109 (32 hours of quota)\n  run hours    the 25 cleanest of those 32, stopped in the other 7\n  aims to end  4 h before the latest safe end",
+      "example_label": "Example plan"
+    },
+    {
+      "key": "act",
+      "n": 5,
+      "name": "Act on the cloud API",
+      "what": "Create, stop, start or delete VMs. The first accepted create starts the run clock.",
+      "where": "The run's Exoscale-compatible API, /runs/{run}/cloud/{zone}/v2, through the official exoscale Python package (Live.create, Live.act). Every request is locked to this run's URL prefix.",
+      "how": "A VM is bound to its workload by its user-data. Names are unique per workload and worker, so a create retried after a lost reply finds the VM instead of making a second one.",
+      "lang": "json",
+      "example": "name:      gops-w-05-eu-render-0-0\nuser-data: {\"greenops\": {\"schema_version\": \"1.0\",\n             \"workload_id\": \"w-05-eu-render\"}}\nthen:      stop / start / delete by VM id",
+      "example_label": "Real format"
+    },
+    {
+      "key": "log",
+      "n": 6,
+      "name": "Write the decision log",
+      "what": "Every change of plan with its reason, plus one status sample per simulated hour.",
+      "where": "decisions.jsonl and status.jsonl in the run's output folder (greenops/.local/runN, kept out of git). python -m greenops.analyze reads them and cites the log line behind every number.",
+      "how": "Feeds this page and the run analysis: when each job was planned, created, paused and delivered, and how early it finished.",
+      "lang": "json",
+      "example": "{\"t\": 77.66, \"workload\": \"w-13-regional-index\", \"action\": \"create\",\n \"reason\": \"run: hour 77 is one of the 25 cleanest of its 32-hour block\",\n \"zone\": \"at-vie-2\", \"workers\": 2, \"block\": [77, 109]}",
+      "example_label": "Real format"
+    }
+  ],
+  "outside": [
+    {
+      "key": "dashboard",
+      "name": "Platform dashboard",
+      "what": "The official carbon and score of a run, with a per-workload breakdown and the allocation history.",
+      "where": "The challenge portal, per run ID. Not available through the API our controller uses.",
+      "how": "The only source for real carbon and score. We read it after a run and never copy its values into the repository (rule 2)."
+    },
+    {
+      "key": "offline",
+      "name": "Offline game",
+      "what": "Everything drawn on these pages: schedules, carbon, quota use, the policy comparison.",
+      "where": "greenops/game.py with the real spec and the same planner code, on a synthetic grid generated from a seed.",
+      "how": "Lets us test changes on many grids without spending practice runs. Its score uses the published greenops-score-v2 constants; only the platform's score counts."
+    }
+  ]
+}

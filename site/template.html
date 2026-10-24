@@ -155,6 +155,34 @@ code{font-size:.92em;background:var(--line-2);padding:.08em .35em;border-radius:
 @media (max-width:760px){.explore{grid-template-columns:1fr}}
 footer{padding:40px 0 64px;color:var(--muted);font-size:.92rem}
 footer p{max-width:72ch}
+
+/* ---------- where every number comes from ---------- */
+.src-loop{margin-top:40px}
+.src-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border-top:2px solid var(--line)}
+.src-steps li{display:contents}
+.src-steps button{all:unset;box-sizing:border-box;cursor:pointer;display:grid;gap:4px;align-content:start;padding:14px 16px 14px 0;margin-top:-2px;border-top:2px solid transparent;color:var(--ink-2)}
+.src-steps button .n{font-family:var(--display);font-variation-settings:"wdth" 80;font-weight:700;font-size:2rem;line-height:1;color:var(--line)}
+.src-steps button .t{font-family:var(--display);font-variation-settings:"wdth" 92;font-weight:600;font-size:1rem;line-height:1.2}
+.src-steps button[aria-selected="true"]{border-top-color:var(--ours);color:var(--ink)}
+.src-steps button[aria-selected="true"] .n{color:var(--ours)}
+.src-steps button:hover .t{color:var(--ink)}
+.src-steps button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.src-again{margin:0;font-size:.85rem;color:var(--muted)}
+.src-again::before{content:"↺ "}
+.src-detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:24px 48px;margin-top:28px;padding:28px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.src-detail h3{grid-column:1/-1}
+.src-detail dl{margin:0;display:grid;gap:14px;align-content:start}
+.src-detail dt{font-weight:700;font-size:.9rem}
+.src-detail dd{margin:2px 0 0;color:var(--ink-2)}
+.src-detail .rule{border-left:3px solid var(--clean);padding-left:12px;color:var(--ink)}
+.src-detail figure{margin:0;min-width:0;display:grid;gap:6px;align-content:start}
+.src-detail figcaption{font-size:.85rem;color:var(--muted)}
+.src-detail pre{margin:0;padding:14px 16px;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;overflow:auto;font:400 .8rem/1.6 ui-monospace,"Cascadia Mono",Menlo,monospace;color:var(--ink)}
+.src-outside{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-top:28px}
+.src-outside div{padding:18px 20px;border:1px dashed var(--hatch);border-radius:10px;color:var(--ink-2)}
+.src-outside h3{color:var(--ink);margin-bottom:6px}
+@media (max-width:860px){.src-steps{grid-template-columns:repeat(3,minmax(0,1fr))}.src-detail{grid-template-columns:1fr;padding:20px}}
+@media (max-width:480px){.src-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -167,6 +195,7 @@ footer p{max-width:72ch}
     <nav class="links" aria-label="Sections">
       <a href="#levers">How it saves carbon</a>
       <a href="#planner">The planner</a>
+      <a href="#sources">Where the data comes from</a>
       <a href="#results">Results</a>
       <a href="control-room/">Control Room</a>
       <a href="https://github.com/ValGSgit/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security">Source on GitHub</a>
@@ -275,6 +304,19 @@ footer p{max-width:72ch}
   </div>
 </section>
 
+<section id="sources">
+  <div class="wrap">
+    <h2>Where every number comes from</h2>
+    <p class="lede prose" id="srcLede"></p>
+    <div class="src-loop">
+      <ol class="src-steps" role="tablist" aria-label="Steps of one poll" id="srcSteps"></ol>
+      <p class="src-again">then again, about once per wall second</p>
+    </div>
+    <div class="src-detail" role="tabpanel" id="srcDetail" aria-live="polite"></div>
+    <div class="src-outside" id="srcOutside"></div>
+  </div>
+</section>
+
 <section id="results">
   <div class="wrap">
     <h2>Results</h2>
@@ -288,10 +330,12 @@ footer p{max-width:72ch}
       </div>
       <div class="prose">
         <h3>On the live platform</h3>
-        <p>Two practice runs, the second inside our Docker image at 720× speed, the judges' setup. Both delivered all 15 jobs
-          on time and stayed qualified, with no refused actions and no machine left running. The first run topped the
-          preliminary leaderboard. Real-run carbon and scores stay on the platform's dashboard, because the rules forbid
-          publishing a scenario's real values.</p>
+        <p>Four practice runs, three of them inside our Docker image at 720× speed, the judges' setup. All stayed qualified
+          with no refused actions. Runs 1, 2 and 4 delivered all 15 jobs on time; the first topped the preliminary
+          leaderboard on Friday. Run 3 left one parallel job without room until its deadline: it looked flexible because
+          it could use ten workers, so it was planned last. Now a job that finds no room is planned first, and in run 4 that
+          job finished 22 hours early. Real-run carbon and scores stay on the platform's dashboard, because the rules
+          forbid publishing a scenario's real values; the run figures here come from our own decision logs.</p>
         <h3 style="margin-top:28px">How the score works</h3>
         <p>We checked this formula against the platform's own per-job breakdown: each job earns up to its share of 20,000
           points, divided by <span class="num">1 + 0.75 × its carbon cost + 0.25 × the run's carbon cost</span>, both measured against
@@ -299,10 +343,10 @@ footer p{max-width:72ch}
       </div>
     </div>
     <dl class="facts">
-      <div><dt class="num">15/15</dt><dd>jobs on time in every benchmark run and both practice runs</dd></div>
-      <div><dt class="num">70</dt><dd>automated tests, including every job against all 11 zones for residency</dd></div>
-      <div><dt class="num">53 MiB</dt><dd>peak memory in the judges' 1 GiB container for a full 120-hour run</dd></div>
-      <div><dt class="num">0.63 s</dt><dd>average re-plan per simulated hour, against a 5 s budget at 720×</dd></div>
+      <div><dt class="num">15/15</dt><dd>jobs on time in every benchmark run and in practice runs 1, 2 and 4</dd></div>
+      <div><dt class="num">79</dt><dd>automated tests, including every job against all 11 zones for residency</dd></div>
+      <div><dt class="num">38 MiB</dt><dd>controller memory in the judges' 1 GiB container, measured with docker stats in practice run 3</dd></div>
+      <div><dt class="num">0.23 s</dt><dd>longest planning step in any slow poll of practice run 4; the rest was waiting for the platform</dd></div>
     </dl>
   </div>
 </section>
@@ -495,6 +539,34 @@ function drawAll(){readStops();legend();drawGantt();drawQuota();drawBlock();draw
 drawAll();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change",drawAll);
 if(!reduce){const io=new IntersectionObserver(es=>{if(es[0].isIntersecting){io.disconnect();setT(0);start()}},{threshold:.5});io.observe($("gantt"))}
+
+/* ---------- where every number comes from ---------- */
+const SRC=/*__SOURCES__*/null;
+let srcSel=0;
+function renderSources(){
+  const steps=document.getElementById("srcSteps"), det=document.getElementById("srcDetail"), out=document.getElementById("srcOutside");
+  if(!SRC){ document.getElementById("sources").hidden=true; return; }
+  document.getElementById("srcLede").textContent=SRC.loop_note+" "+SRC.example_note;
+  steps.textContent="";
+  SRC.steps.forEach((st,i)=>{
+    const li=document.createElement("li"), b=document.createElement("button");
+    b.type="button"; b.role="tab"; b.id="src-"+st.key; b.setAttribute("aria-selected",String(i===srcSel)); b.setAttribute("aria-controls","srcDetail"); b.tabIndex=i===srcSel?0:-1;
+    b.innerHTML=`<span class="n">${st.n}</span><span class="t"></span>`; b.querySelector(".t").textContent=st.name;
+    b.onclick=()=>{ srcSel=i; renderSources(); document.getElementById("src-"+st.key).focus(); };
+    b.onkeydown=e=>{ const k={ArrowRight:1,ArrowLeft:-1}[e.key]; if(k){ e.preventDefault(); srcSel=(srcSel+k+SRC.steps.length)%SRC.steps.length; renderSources(); document.getElementById("src-"+SRC.steps[srcSel].key).focus(); } };
+    li.appendChild(b); steps.appendChild(li);
+  });
+  const st=SRC.steps[srcSel]; det.textContent=""; det.setAttribute("aria-labelledby","src-"+st.key);
+  const h3=document.createElement("h3"); h3.textContent=st.name; det.appendChild(h3);
+  const dl=document.createElement("dl");
+  [["What it gives",st.what],["Where it comes from",st.where],["How the planner uses it",st.how]].forEach(([k,v])=>{ const dt=document.createElement("dt"), dd=document.createElement("dd"); dt.textContent=k; dd.textContent=v; dl.append(dt,dd); });
+  if(st.rule){ const dd=document.createElement("dd"); dd.className="rule"; dd.textContent=st.rule; dl.appendChild(dd); }
+  const fig=document.createElement("figure"), cap=document.createElement("figcaption"), pre=document.createElement("pre");
+  cap.textContent=st.example_label||"Example"; pre.textContent=st.example; fig.append(cap,pre); det.append(dl,fig);
+  out.textContent="";
+  (SRC.outside||[]).forEach(o=>{ const d=document.createElement("div"), h=document.createElement("h3"), p=document.createElement("p"); h.textContent=o.name; p.textContent=`${o.what} From: ${o.where} ${o.how}`; p.style.margin="0"; d.append(h,p); out.appendChild(d); });
+}
+renderSources();
 </script>
 </body>
 </html>

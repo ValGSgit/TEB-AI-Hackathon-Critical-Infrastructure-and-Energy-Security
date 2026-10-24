@@ -91,6 +91,17 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
 - Otherwise: 0 refused actions, qualified, and the other 14 jobs were on time (`python -m greenops.analyze
   .local/run1 .local/run2 .local/run3`). A duplicate `create` line at t=0 is a log duplicate (one VM only).
 
+## Run 4 (720×, Docker, commit `dc92006`: rescue pass + fast loop): 15/15
+
+- Same grid as runs 1–3 (hour-0 AT forecast identical). 15/15 on time, qualified, 0 blocked, 0 refused.
+- w-05 was created at hour 36 and finished 22 h early (run 3: never ran; runs 1/2: about 2 h early). The
+  tightest job finished 5.2 h early, the best of all runs; no job finished less than 4 h early.
+- **The platform was slow.** The work-status reply took 10.6 s at the median in slow polls (max 20 s), and
+  one action took 21 s. 26 polls failed on our 10 s read timeout. Planning never took more than 0.23 s.
+  Only 42 hourly samples. VMs idled 20.4 h in total after delivery (run 2: 2.2 h), because we learn about a
+  delivery only from a status reply. Fix in item 0: a 30 s status timeout and a short retry.
+- Score and carbon: platform dashboard only (run ID in `.local/run4/provenance.json`).
+
 ## Plan, in order
 
 0. **Before the next run (fix/no-starvation):**
@@ -108,7 +119,9 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
      console. Read `console.log` after run 4.
    - Checked, no change: all legal zones instead of the top 2 per profile (16 seeds: identical score and
      carbon, planning 2.4× slower).
-   - Run 4 the same way as run 3, then `python -m greenops.analyze .local/run{2,3,4}` and the dashboard.
+   - Run 4: done (above).
+   - Status timeout: wait up to 30 s for the work status (it took 10–20 s in run 4) and retry after 0.5 s
+     instead of failing at 10 s and sleeping 2 s.
 
 1. **Stop the postponing** (`planner.py`, `_replan`): done offline; live, run 3 shows it is not enough on its own.
    - Done, `slack_h=4`: each job is planned to end 4 h before its latest end when that fits. A created job

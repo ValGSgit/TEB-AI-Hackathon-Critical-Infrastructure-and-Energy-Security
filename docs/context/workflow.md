@@ -10,7 +10,7 @@ python -m pytest -q        # about 75 tests, about 2 min
 python -m greenops.play --seeds 8                           # real-challenge planner on the offline game
 python compare.py 20                                        # earlier synthetic path
 python -m greenops.experiments --seeds 12
-python -m greenops.export --seed 3 && python ui/build.py   # -> ui/dashboard.html
+python -m greenops.export_game --seed 3 --ladder 8 && python ui/build.py   # -> ui/dashboard.html (real path)
 python globe/build.py                                      # -> globe/earth.html
 ```
 
@@ -48,7 +48,7 @@ Pages → Source: GitHub Actions. Edit `site/template.html`, never the built pag
 
 - `greenops`: `pip install -r requirements-dev.txt`, `pytest -q`, `compare.py 5`, `greenops.play --seeds 2`.
 - `galileo-live`: `python forcegeo/galileo-live/build.py`.
-- `greenops-ui`: experiments + export + `ui/build.py` + `globe/build.py`.
+- `greenops-ui`: legacy experiments + export (smoke test), `export_game` + `ui/build.py` + `globe/build.py`.
 
 ## Working rules
 
