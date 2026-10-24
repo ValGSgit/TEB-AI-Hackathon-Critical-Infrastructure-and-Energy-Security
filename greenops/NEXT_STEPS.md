@@ -1,8 +1,40 @@
 # GreenOps: where we are and what comes next
 
-Written after day 1 (Fri 23 Oct 2026), after two practice runs. Start here on Saturday.
+## Start here (Sat 24 Oct 2026, evening; for a fresh session)
 
-## Status
+- **State:** `main` has every fix (PRs #14–#26; #26 = tests from the code review). Run 7 (720×, Docker, commit `24da484`) delivered 15/15 and
+  stayed qualified, with all VMs deleted within 0.3 h of delivery. Run 2 (tag `run2-code`, commit `1e1a7702`,
+  branch `submission/run2-code`) is still the best practice score, by 0.6%. Exact scores, run IDs and the run
+  table are in `greenops/.local/SESSION_HANDOFF.md` (git-ignored; real-run values never go in git).
+- **Run 8** at 360× (the user's choice, to compare speeds), code = `main` at `0b75ed5` (PR #26 added tests only).
+- **What `main` does differently from run 2** (all measured offline, see ADR-0012 to ADR-0016):
+  - 4 h soft end
+  - kept starts
+  - no job may starve (urgent when no slot or only a late slot)
+  - finish what is nearly done (≤ 12 h of work or spare time)
+  - pause less on a slow platform
+  - stale-forecast fallback and safe mode
+  - deletes first, parallel actions, parallel cached forecasts
+  - status timeout 60 s
+  It costs about 0.3% of offline score and gives 15/15 under quota crowding and most stalls, where run 2's
+  code fails.
+- **Tried and rejected** (offline evidence in the ADRs and NEXT_STEPS below):
+  - judging spare time on 1 worker
+  - widening every deadline margin by the poll gap
+  - stall protection only when the platform is slow
+  - "finish" only near the deadline (24/36/48 h)
+  - urgent after a refused create
+  - all 11 zones per profile
+- **Decision for Sunday:** which commit to submit. Recommended: `main`, because it is robust to slow
+  platforms and crowding; the 5,000-point bonus outweighs a ~0.6% carbon edge. The fallback is `run2-code`.
+- **Pitch:** private deck "GreenOps jury pitch" (Claude artifact, 11 slides) built with the personal
+  `pitch-deck` skill. Its fact sheet is `~/.claude/skills/pitch-deck/references/greenops-hackathon.md`
+  (outside the repo). Before presenting: add run 8, check names, share it.
+- **Analyse a run:** `python -m greenops.analyze .local/runN`, then compare with the dashboard. Launch
+  commands: "How to run" below, with the Docker variant and `--probe` first. Credentials: check that the
+  `.env` endpoints and `greenops-exo.json` name the same run ID (`live.py` refuses a mismatched work endpoint).
+
+## Status (day 1)
 
 - The real-challenge orchestrator (`greenops/planner.py` + `greenops/live.py`) completed its **first practice
   run at 360×**. All 15 workloads were delivered on time, the run stayed qualified, every VM was deleted, and the
