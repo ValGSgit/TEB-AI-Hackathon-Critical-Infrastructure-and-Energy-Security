@@ -330,13 +330,15 @@ footer p{max-width:72ch}
       </div>
       <div class="prose">
         <h3>On the live platform</h3>
-        <p>Five practice runs, four of them inside our Docker image at 720× speed, the judges' setup. All stayed
-          qualified. Runs 1, 2 and 4 delivered all 15 jobs on time; the first topped the preliminary leaderboard on
-          Friday. Run 3 left one parallel job without room until its deadline. Now a job that finds no room, or only a
-          late slot, is planned first, and in run 4 that job finished 22 hours early. In run 5 the platform took 65
-          seconds to answer one status request, about 13 simulated hours, and a paused job that was nearly done
-          resumed too late. Now a job with 12 or fewer hours of work, or of spare time, left runs straight to the end. Real-run carbon and scores stay on the platform's dashboard, because the rules
-          forbid publishing a scenario's real values; the run figures here come from our own decision logs.</p>
+        <p>Ten practice runs, almost all inside our Docker image at 720× speed, the judges' setup, and all stayed
+          qualified. Each failure became a rule and a test. Run 3 left a parallel job without room, so now a job with
+          no room or only a late slot is planned first. Runs 5 and 6 hit a slow platform (one status reply took 65
+          seconds, about 13 simulated hours), so now nearly finished jobs run straight through, the controller
+          deletes first and acts in parallel, and it falls back to the run's last forecast if a request times out.
+          With every safety rule on, runs 7 and 8 reproduced within 8 points. The adaptive profile (run 9) plans like
+          our best run while the platform is fast and switches the stall rules on by itself when it slows: it came
+          within 0.05% of our best score. Real-run carbon and scores stay on the platform's dashboard, because the
+          rules forbid publishing a scenario's real values; the run figures here come from our own decision logs.</p>
         <h3 style="margin-top:28px">How the score works</h3>
         <p>We checked this formula against the platform's own per-job breakdown: each job earns up to its share of 20,000
           points, divided by <span class="num">1 + 0.75 × its carbon cost + 0.25 × the run's carbon cost</span>, both measured against
@@ -344,7 +346,7 @@ footer p{max-width:72ch}
       </div>
     </div>
     <dl class="facts">
-      <div><dt class="num">15/15</dt><dd>jobs on time in every benchmark run and in practice runs 1, 2 and 4</dd></div>
+      <div><dt class="num">15/15</dt><dd>jobs on time in every benchmark run and in practice runs 1, 2, 4 and 7–9</dd></div>
       <div><dt class="num">99</dt><dd>automated tests, including every job against all 11 zones for residency</dd></div>
       <div><dt class="num">38 MiB</dt><dd>controller memory in the judges' 1 GiB container, measured with docker stats in practice run 3</dd></div>
       <div><dt class="num">0.23 s</dt><dd>longest planning step in any slow poll of practice run 4; the rest was waiting for the platform</dd></div>

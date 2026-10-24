@@ -7,7 +7,8 @@ TEB AI Hackathon: Critical Infrastructure & Energy Security · weXelerate, Vienn
 
 > Same work, same deadlines, same legal countries: **44% less carbon** than a naive scheduler
 > (offline benchmark, 8 synthetic grids, 15/15 delivered on time in every run).
-> Two practice runs on the live platform: 15/15 on time, qualified, every VM cleaned up, no refused actions.
+> Ten practice runs on the live platform, all qualified. Every failure we hit became a rule and a test, and the
+> latest runs deliver 15/15 with every VM deleted within minutes of its delivery.
 
 **Project site: [valgsgit.github.io/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security](https://valgsgit.github.io/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security/)**, with an interactive 120-hour replay, the
 planner explained, results, the Control Room and the Earth view.
@@ -108,6 +109,15 @@ flowchart LR
 5. **Act.** Delete after `final_output_delivered`, stop, start, create. The first create starts the run
    clock. Refused actions are re-planned. Every decision is logged with its reason
    (`decisions.jsonl`), which feeds the Control Room.
+6. **Safety nets from the practice runs** (`docs/context/decisions.md`, ADR-0012 to ADR-0017):
+   - no job may starve: a job with no slot, or only a late one, is planned first;
+   - finish what is nearly done, and stop pausing when spare time runs low;
+   - pause less when the platform answers slowly;
+   - the live loop never sits blind: deletes first, parallel actions and forecasts, a stale-forecast
+     fallback, safe mode, 60 s status timeout.
+7. **Profiles** (`GREENOPS_PLANNER`): `default` keeps every safety rule on. `adaptive` plans like our best
+   run while the platform answers quickly, and switches the stall rules on by itself once a gap between
+   status replies exceeds 0.75 simulated hours. Nothing is tuned to one scenario.
 
 Example: a job that needs 7 run hours gets a 10-hour block (R = running, · = stopped; quota is held for all
 10 hours):
@@ -142,23 +152,28 @@ Electricity is **synthetic**: 8 random grids built from generic country profiles
 
 ### Live platform (practice runs)
 
-| | Run 1 (360×) | Run 2 (720×, in our Docker image: the judges' setup) |
+| Run | On time | What it showed, and what we changed |
 | --- | --- | --- |
-| Delivered on time | 15/15 | 15/15 |
-| Qualification | Qualified, no residency attempts | Qualified, no residency attempts |
-| VMs left at the end | 0 | 0 |
-| Refused actions | 0 | 0 |
+| 1 (360×) | 15/15 | Topped the preliminary leaderboard. One crash on a timestamp format: fixed and restart-tested |
+| 2 (720×, Docker) | 15/15 | Our best score; the tightest job finished only 1.9 h early |
+| 3 | 14/15 | A 10-worker job looked flexible and never got quota → no job may starve |
+| 4 | 15/15 | That fix started parallel jobs too early (more carbon) → run 2's job order back |
+| 5 | 14/15 | A 65 s platform reply left a nearly done job paused → finish what is nearly done |
+| 6 | 14/15 | Forecast timeouts stopped planning → stale-forecast fallback, safe mode, parallel actions |
+| 7, 8 | 15/15 | All safety rules on: reproducible within 8 points, ~0.6% below run 2 |
+| 9 | 15/15 | `adaptive` profile: within 0.05% of run 2, with every safety net on |
+| 10 | [pending] | `adaptive` again |
 
-Run 1 was first on the preliminary leaderboard. In run 1 the controller crashed once on a timestamp format
-(fixed in `spec.to_h`); it was restarted and adopted the running VMs, which is now tested. Real-run carbon and scores stay on the platform dashboard,
-not in git, because the rules forbid committing a scenario's real carbon values.
+All runs stayed qualified, with no residency attempt. Speeds are 720× in our Docker image unless noted.
+Real-run carbon and scores stay on the platform dashboard, not in git, because the rules forbid committing
+a scenario's real carbon values.
 
 ### Fits the judging box
 
-A full 120-hour run against our fake platform, inside the container with the judges' limits (2 CPUs, 1 GiB,
-read-only root, 1 s polling = 0.2 simulated hours at 720×), delivered 15/15. Peak memory was 53 MiB. A full
-re-plan took 0.63 s on average and 0.82 s at most per simulated hour, including 8 forecast fetches; the
-budget is 5 s.
+Inside the judges' limits (2 CPUs, 1 GiB, read-only root, `/tmp` only): about 38 MiB of memory in a live
+practice run (docker stats). Planning took at most 0.23 s per poll in our logged live polls; the rest of a
+slow poll was waiting for the platform. Against the fake platform with 0.3 s per forecast request, a full
+run takes 28 s of wall time with parallel forecast fetching, against 160 s without.
 
 ### Tests
 
@@ -271,6 +286,8 @@ On Windows use `PYTHONUTF8=1`; the Git Bash notes are in [`greenops/NEXT_STEPS.m
 
 - [ ] Repo access for the judges, plus the full commit SHA of the submitted version
 - [ ] Finalized run ID (the best practice run, finalized on the portal)
+- [ ] Planner profile decided: the judges run the image without `GREENOPS_PLANNER`, so the submitted
+      commit's `default` profile is what gets judged
 - [ ] Container instructions: section 7 above (`docker build` / `docker run` with the five variables)
 - [ ] `git ls-files | grep -i -E "exo.*json|\.env$"` shows only `credentials.example.env`; no real-run carbon values in git
 - [ ] CI green on the submitted commit

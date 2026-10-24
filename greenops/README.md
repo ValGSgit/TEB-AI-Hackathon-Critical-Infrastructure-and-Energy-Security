@@ -34,6 +34,13 @@ Windows checkouts.
   2 h before its deadline (`margin_h`) and is planned to finish 4 h before that when it fits (`slack_h`).
   A created job that no longer fits that runs every hour instead of pausing.
 - A start planned within 2 h is kept (`commit_h`): same placement and hour, quota right after created jobs.
+- No job may starve: a job with no slot, or only one past its soft end, is planned right after created jobs
+  (`rescue`, `urgent_late`). A created job with at most 12 h of work or of spare time runs straight
+  through (`finish_h`, `flat_slack_h`), and the threshold grows with the slowest status reply seen (`gap_factor`).
+- Profiles (`GREENOPS_PLANNER`): `default` (all of the above), `adaptive` (the stall rules switch on only once a
+  status gap exceeds 0.75 simulated hours) and `run2plus`. See ADR-0012 to ADR-0017.
+- The live loop deletes first, sends actions and forecast requests in parallel, reuses this run's last forecast
+  when a request fails, and starts unfinished work in safe mode if planning fails (ADR-0014, ADR-0016).
 - Actions each tick: delete (after `final_output_delivered`), stop, start, create. The first create runs
   while the run is READY, because the run clock starts at the first accepted create. A refused action is
   forgotten and re-planned. Every change goes to a decision log with its reason.
