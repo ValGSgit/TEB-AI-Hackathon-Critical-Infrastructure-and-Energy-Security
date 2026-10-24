@@ -38,6 +38,10 @@
   back the quota their pauses would hold late in the run. Spare time is judged on 1 worker, not `max_workers`.
   Reason: run 3 left `w-05` (up to 10 workers, so it looked flexible) without a slot from hour 79 and lost the
   completion bonus. Offline with 240 vCPUs: 13.0 → 15.0 of 15 delivered; with the real 320, plans are unchanged.
+- **ADR-0014**: The live loop spends as little wall time as possible: at 720× one wall second is 0.2 simulated hours.
+  Delivered VMs are deleted first in every poll. Forecasts are fetched once per re-plan, cached per area and hour,
+  and the 8 areas are fetched in parallel (thread-safe rate limiter). Reason: run 3 went up to ~23 wall seconds
+  without a poll, and VMs idled for hours after delivery.
 - **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
   English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
   commit as the change they describe. External skills are optional: nothing in the repo depends on them.

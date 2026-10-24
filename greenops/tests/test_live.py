@@ -100,3 +100,23 @@ def test_work_endpoint_must_belong_to_the_run(monkeypatch, tmp_path, run):
             with pytest.raises(ValueError, match="Work endpoint"):
                 live.main()
     assert not any(m == "POST" for m, _p in f.calls)
+
+
+def test_one_forecast_fetch_per_area_per_hour_and_deletes_first(monkeypatch, tmp_path):
+    """At 720x a wall second is 0.2 simulated hours, so the loop must not repeat forecast fetches (the rescue
+    pass re-plans up to three times an hour) and must delete delivered VMs before anything slow."""
+    f = Fake(seed=2, step_h=1.0, forecast_delay_s=0.02)
+    for k, v in dict(EXOSCALE_API_KEY="EXOtest", EXOSCALE_API_SECRET="secret", GREENOPS_CLOUD_ENDPOINT=f.cloud,
+                     GREENOPS_GRID_ENDPOINT=f.grid_url, GREENOPS_GRID_SECRET="g",
+                     NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost").items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr(sys, "argv", ["live", "--env-file", str(tmp_path / "none.env"), "--config", str(tmp_path / "none.json"),
+                                      "--poll", "0", "--rate", "1000", "--out", str(tmp_path)])
+    from greenops import live
+    with contextlib.redirect_stdout(io.StringIO()):
+        live.main()
+    areas = {s.area for s in f.spec.sites.values()}
+    fetches = [p for m, p in f.calls if "carbon-intensity/forecast" in p]
+    polls = [p for m, p in f.calls if p.endswith("/work/v1/status")]
+    assert len(fetches) <= len(areas) * (len(polls) + 1), (len(fetches), len(polls))
+    assert f.game.score()["delivered"] >= 14 and not f.game.vms, "every VM deleted at the end"

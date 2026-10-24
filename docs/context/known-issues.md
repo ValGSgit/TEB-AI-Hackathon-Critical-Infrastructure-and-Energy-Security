@@ -10,7 +10,8 @@
   Mitigated by ADR-0012 (`slack_h`, `commit_h`). Run 3 then starved `w-05` completely (quota crowding); fixed
   by ADR-0013 (rescue pass).
 - **Slow polls at 720×.** One wall second is 0.2 simulated hours. Run 3's loop went up to ~23 s without a poll, so
-  deletes came hours late. `live.py` prints `slow_poll_s` (status / plan / act split) for any poll over 2 s.
+  deletes came hours late. Mitigated by ADR-0014; `live.py` prints `slow_poll_s` (status / plan / act split) for any
+  poll over 2 s.
 - **Quiet blocked jobs.** The decision log records only state changes, so a job that stays "blocked" logs once.
   Read the absence of later lines as "still blocked".
 - **Status sampling.** `status.jsonl` is sampled once per simulated hour, so a job delivered after the last sample
