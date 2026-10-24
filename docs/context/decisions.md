@@ -12,9 +12,8 @@
   disqualifies the whole run even if the API rejects it.
 - **ADR-0005**: UI and 3D globe consume a versioned JSON run export produced by `greenops.export` from the local
   simulator; a second exporter from the real platform is expected on Friday with no UI changes.
-- **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
-  English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
-  commit as the change they describe. External skills are optional: nothing in the repo depends on them.
+- **ADR-0006**: Engineering docs live in `docs/context/` (architecture, decisions, glossary, workflow, known issues),
+  in English, and are updated in the same commit as the change they describe.
 - **ADR-0007**: Vendor the organizers' public spec (`greenops/challenge/*.json`, hash-checked against their manifest)
   and load it with `spec.py` into the existing model, instead of hand-copying numbers. Public data only: no electricity
   series.

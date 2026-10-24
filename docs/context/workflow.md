@@ -26,7 +26,7 @@ python forcegeo/galileo-design/compute_sky.py   # -> sky2.json (needs skyfield +
 
 ## Practice and judged runs
 
-See `greenops/NEXT_STEPS.md` ("How to run") for the full steps. In short, from `greenops/`, with the run left READY
+The Docker command the judges run is in the root README, section 7. Locally, from `greenops/`, with the run left READY
 (our first create starts the clock):
 
 ```bash

@@ -24,7 +24,7 @@ planner explained, results, the Control Room and the Earth view.
 5. [Rules we never break](#5-rules-we-never-break)
 6. [Architecture](#6-architecture)
 7. [Run it](#7-run-it)
-8. [Submission checklist](#8-submission-checklist)
+8. [Submission](#8-submission)
 9. [Presentation assets](#9-presentation-assets)
 10. [Also in this repo](#10-also-in-this-repo)
 
@@ -149,7 +149,7 @@ Electricity is **synthetic**: 8 random grids built from generic country profiles
 - Placement and hardware choice are the biggest lever; pausing adds a further 5% on top. With the stall
   rules always on (`safe` profile) the planner gives up about 0.3%; `adaptive`, the default, turns them on
   only when the platform is measured slow (ADR-0017, ADR-0018). On the real
-  platform's grids the timing levers are worth more than on our synthetic ones (see `greenops/NEXT_STEPS.md`).
+  platform's grids the timing levers are worth more than on our synthetic ones.
 
 ### Live platform (practice runs)
 
@@ -225,16 +225,11 @@ flowchart TB
 ```
 .
 ├── README.md                     ← you are here
-├── SUBMISSION.md                 form fields and paste-ready build/run instructions for the judges
-├── AGENTS.md / CLAUDE.md         rules for every coding assistant in this repo
 ├── docs/
 │   ├── context/                  architecture, decisions (ADRs), glossary, workflow, known issues
-│   ├── reviews/                  dated code reviews
-│   ├── greenops-challenge-brief.txt   the organizers' challenge text
-│   └── challenge-choice-and-prebuild.md
+│   └── greenops-challenge-brief.txt   the organizers' challenge text
 ├── greenops/                     ★ the submission
 │   ├── Dockerfile                judged image: python -m greenops.live
-│   ├── NEXT_STEPS.md             status after the practice runs and the ordered plan
 │   ├── challenge/                organizers' public spec (catalog, workloads, rules, manifest)
 │   ├── greenops/
 │   │   ├── spec.py               load the spec → zones, profiles, workloads, quotas, score constants
@@ -275,30 +270,33 @@ python -m greenops.live --probe --out .local/probe    # read-only: zones, types,
 python -m greenops.live --out .local/run3             # the run; if it dies, start it again (it adopts VMs)
 ```
 
-**Judged setup (Docker, the same limits as the judges):**
+**Judged setup (Docker, the same limits as the judges).** From the repository root, at the submitted commit,
+against a fresh run that is READY (the first VM create starts the run clock):
 
 ```bash
 docker build -t greenops greenops
 docker run --rm --read-only --tmpfs /tmp --cpus 2 --memory 1g \
   -e EXOSCALE_API_KEY -e EXOSCALE_API_SECRET -e GREENOPS_CLOUD_ENDPOINT \
-  -e GREENOPS_GRID_ENDPOINT -e GREENOPS_GRID_SECRET \
+  -e GREENOPS_GRID_SECRET \
   greenops
 ```
 
-Optional: `-v "$PWD/greenops/.local/run3:/tmp/out" ... greenops --out /tmp/out` keeps the decision log.
-On Windows use `PYTHONUTF8=1`; the Git Bash notes are in [`greenops/NEXT_STEPS.md`](greenops/NEXT_STEPS.md).
+- Required: `EXOSCALE_API_KEY`, `EXOSCALE_API_SECRET`, `GREENOPS_CLOUD_ENDPOINT`
+  (`https://<host>/runs/<run-id>/cloud/v2`) and `GREENOPS_GRID_SECRET`. The grid and work endpoints are derived
+  from the cloud endpoint; `GREENOPS_GRID_ENDPOINT` / `GREENOPS_WORK_ENDPOINT` may be given but must belong to
+  the same run. `GREENOPS_PLANNER` is optional (default `adaptive`).
+- Instead of the three cloud variables, mount the run's CLI config:
+  `-v "$PWD/greenops-exo.json:/cfg/greenops-exo.json:ro" ... greenops --config /cfg/greenops-exo.json`.
+- The controller runs until every workload is delivered and its VMs are deleted, or the run ends. Add
+  `-v "$PWD/out:/tmp/out" ... greenops --out /tmp/out` to keep the decision log, and `--probe` for a read-only check.
+- The image is `python:3.13-slim`, non-root, with a read-only root; it writes only to `/tmp` and reads no other files.
+  On Windows set `PYTHONUTF8=1`; in Git Bash prefix Docker commands with `MSYS_NO_PATHCONV=1` and use `$(pwd -W)`.
 
-## 8. Submission checklist
+## 8. Submission
 
-Form fields and paste-ready build/run instructions: [`SUBMISSION.md`](SUBMISSION.md).
-
-- [ ] Repo access for the judges, plus the full commit SHA of the submitted version
-- [ ] Finalized run ID (the best practice run, finalized on the portal)
-- [x] Planner profile: with no `GREENOPS_PLANNER` set the image runs `adaptive` (practice runs 9–12; 11 and 12 with nothing set)
-- [x] Claimed run: practice run 12, made with the `SUBMISSION.md` command on the code that is submitted
-- [ ] Container instructions: section 7 above (`docker build` / `docker run` with the five variables)
-- [ ] `git ls-files | grep -i -E "exo.*json|\.env$"` shows only `credentials.example.env`; no real-run carbon values in git
-- [ ] CI green on the submitted commit
+- Code: this repository at the submitted commit. The image runs the `adaptive` planner when nothing is set.
+- Claimed practice run: run 12, made with the Docker command in section 7 and nothing else set.
+- Build and run: section 7, "Judged setup".
 
 ## 9. Presentation assets
 
@@ -314,10 +312,6 @@ Form fields and paste-ready build/run instructions: [`SUBMISSION.md`](SUBMISSION
   `python -m greenops.export_game --seed 3 --ladder 8 && python ui/build.py` → open `ui/dashboard.html`.
 - **GreenOps Earth** (`greenops/globe/`): a 3D replay of a run on the map, with the 11 zones coloured by
   carbon intensity and arcs for where each workload ran. `python globe/build.py` → open `globe/earth.html`.
-- **Pitch in three lines:** (1) the same work can cost half the carbon depending on where, on what and when
-  it runs; (2) the hard part is that pausing still holds quota, so we plan all jobs on one quota calendar;
-  (3) it never risks the run: the residency guard is checked twice and the planner sees only the run's own
-  forecasts.
 
 ## 10. Also in this repo
 
