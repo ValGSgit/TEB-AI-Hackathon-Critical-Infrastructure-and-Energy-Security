@@ -121,6 +121,9 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
   without pauses. Offline, decisions every 3 h with a 15 h stall at hour 103: 1/12 → 12/12 grids fully on
   time. Normal platform: −54 points (0.25%). Tried and rejected: adding the observed poll gap to every
   deadline margin. It shrank every job's window, brought crowding back and made stalls worse.
+- Before run 6: an adverse-condition sweep (192 offline runs: polls every 0.25/1/3 h, 6–18 h stalls, 280 vCPUs,
+  15% refused actions) found 0 exceptions and no misses on a normal platform. Added `flat_slack_h=12`: a created
+  job with ≤ 12 h of spare time stops pausing (fewer misses after stalls, −9 points normally).
 - Also fixed: a block for a created job could run past hour 120 and crash planning with an IndexError,
   which live would fail every poll. Never seen live; found by the stall test.
 

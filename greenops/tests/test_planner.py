@@ -116,7 +116,7 @@ def test_no_job_starves_when_quota_is_tight(spec, seed):
     tight = dataclasses.replace(spec, quotas=dataclasses.replace(spec.quotas, max_vcpus=240, max_vms=16))
     game, _ = run(tight, seed, lambda s, f: Planner(s, f))
     assert game.score()["delivered"] == 15 and not game.disqualified
-    old, _ = run(tight, seed, lambda s, f: Planner(s, f, rescue=False, urgent_late=False, finish_h=0))
+    old, _ = run(tight, seed, lambda s, f: Planner(s, f, rescue=False, urgent_late=False, finish_h=0, flat_slack_h=0))
     assert old.score()["delivered"] < 15, "the stress case must still reproduce the starvation"
 
 
@@ -153,4 +153,4 @@ def test_a_long_platform_stall_does_not_strand_a_nearly_done_job(spec):
         return g.score()["delivered"]
 
     assert stalled() == 15
-    assert stalled(finish_h=0) < 15, "the stall must still strand a job without the rule"
+    assert stalled(finish_h=0, flat_slack_h=0) < 15, "the stall must still strand a job without the rules"
