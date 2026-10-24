@@ -127,6 +127,9 @@ def main():
     data = build_data()
     html = (ROOT / "site" / "template.html").read_text(encoding="utf-8")
     html = html.replace("/*__DATA__*/null", json.dumps(data, separators=(",", ":")))
+    sources = ROOT / "greenops" / "ui" / "data" / "sources.json"       # shared with the Control Room
+    if sources.exists():
+        html = html.replace("/*__SOURCES__*/null", json.dumps(json.loads(sources.read_text(encoding="utf-8"))).replace("</", "<\/"))
     (out / "index.html").write_text(html, encoding="utf-8")
     # the two explainer pages link to each other by repo path; on the site they live at /control-room/ and /earth/
     links = {"../ui/dashboard.html": "../control-room/", "../globe/earth.html": "../earth/"}

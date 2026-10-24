@@ -284,7 +284,7 @@ On Windows use `PYTHONUTF8=1`; the Git Bash notes are in [`greenops/NEXT_STEPS.m
   It shows the data we use, how blocks and run hours work, the allocation timeline with stopped phases, the
   experiment ladder, carbon by zone, forecast vs reality, the residency matrix and a filterable decision
   feed with the reason for every action.
-  `python -m greenops.export --seed 3 && python ui/build.py` → open `ui/dashboard.html`.
+  `python -m greenops.export_game --seed 3 --ladder 8 && python ui/build.py` → open `ui/dashboard.html`.
 - **GreenOps Earth** (`greenops/globe/`): a 3D replay of a run on the map, with the 11 zones coloured by
   carbon intensity and arcs for where each workload ran. `python globe/build.py` → open `globe/earth.html`.
 - **Pitch in three lines:** (1) the same work can cost half the carbon depending on where, on what and when

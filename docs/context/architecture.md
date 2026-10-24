@@ -29,6 +29,7 @@ Product area that contains the scheduler, the decision-explainer UI and the 3D r
 | `greenops/greenops/live.py` | Entry point `python -m greenops.live`: run-scoped clients for cloud (EXO2 via the `exoscale` binding), grid forecasts (`auth-token`) and signed work status; rate limiter; `--probe` read-only check; never exits mid-run except on a residency violation |
 | `greenops/greenops/game.py` | Offline game with the published rules (stop/resume, sync overhead, input per worker, idle until delete) on a synthetic practice grid; approximate v2 score |
 | `greenops/greenops/play.py` | `python -m greenops.play`: naive vs +zone vs +shift vs carbon-aware on the offline game |
+| `greenops/greenops/export_game.py` | `python -m greenops.export_game`: the real-challenge path (spec, planner, naive baseline, offline game) as the Control Room / Earth view JSON (schema 1) |
 | `greenops/greenops/analyze.py` | `python -m greenops.analyze .local/runN`: what a live run did, from its own logs, with the log line behind every number |
 | `greenops/tests/fake_platform.py` | HTTP fake of the API subset over `game.py`, used to test `live.py` end to end |
 | `greenops/Dockerfile` | Judged image: Python 3.13, unprivileged, read-only root, writes only `/tmp`; `ENTRYPOINT python -m greenops.live` |
