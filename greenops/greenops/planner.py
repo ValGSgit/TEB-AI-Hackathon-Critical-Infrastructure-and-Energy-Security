@@ -56,6 +56,7 @@ class Planner:
     forecast: callable                 # (area, now_h) -> hourly g/kWh from floor(now_h), 6 or 24 values
     stretch: tuple = (1.0, 1.25, 1.5, 2.0)   # block lengths tried, as multiples of the run time
     margin_h: float = 2.0              # finish this long before the deadline
+    protect_gap_h: float = 0.0         # > 0: stall protections switch on only after a reply gap longer than this
     gap_factor: float = 3.0            # ... or at most this many times the longest gap between status replies seen
     gap_h: float = 0.0                 # longest gap between two status replies so far, in simulated hours
     flat_slack_h: float = 12.0         # a created job with at most this much spare time left stops pausing
@@ -206,6 +207,11 @@ class Planner:
         """Not delivered and not created yet (only those can be left without a slot)."""
         return not r["final_output_delivered"] and not r["assignments"] and wid not in self.placements
 
+    def _protect(self) -> bool:
+        """Stall protections (finish_h, flat_slack_h, gap_factor) always, or only once the platform has been
+        measured slow: a gap between status replies longer than protect_gap_h simulated hours."""
+        return self.protect_gap_h <= 0 or self.gap_h > self.protect_gap_h
+
     def _flat_slack(self) -> float:
         """Spare time below which a created job stops pausing: a slow platform may not let us restart it in time."""
         return max(self.flat_slack_h, self.gap_factor * self.gap_h)
@@ -261,8 +267,8 @@ class Planner:
                         continue                  # the soft end does not fit this placement
                     b = self._best_block(w, pl, need, h0, lo, max(end, lo + math.ceil(need) - 1) if created else end,
                                          est, cap, fixed_start=created or commit,
-                                         stretch=(1.0,) if created and (flat or need <= self.finish_h
-                                                                        or (last - lo + 1) - need <= self._flat_slack()) else None)
+                                         stretch=(1.0,) if created and (flat or (self._protect() and (need <= self.finish_h
+                                                                        or (last - lo + 1) - need <= self._flat_slack()))) else None)
                     if b and (best is None or b[0] < best[0][0] or (not self.shift and b[1] < best[0][1])):
                         best = (b, pl)
                 if best:
@@ -414,6 +420,9 @@ class Planner:
 PROFILES = {
     "default": {},
     "run2plus": dict(slack_h=0, commit_h=-1, finish_h=0, flat_slack_h=0, gap_factor=0),
+    # run 2's planning while the platform answers quickly; default's stall protections switch on by themselves
+    # once a gap between status replies exceeds 0.75 simulated hours (about 4 wall seconds at 720x)
+    "adaptive": dict(slack_h=0, commit_h=-1, protect_gap_h=0.75),
 }
 
 

@@ -66,6 +66,11 @@
   sweep, 192 runs each: run2plus is equal to run 2's code everywhere except tighter quota, where it is far safer.
   Against `default` it gains 73 points on a fast platform and loses the bonus on 9 of 16 grids when polls come every
   3 h. Run 7 and run 8 (`default`, fast platform) scored within 8 points of each other.
+  `adaptive`: run 2's planning while status replies come quickly, and default's stall protections (finish_h,
+  flat_slack_h, gap_factor) switch on by themselves once a reply gap exceeds `protect_gap_h` = 0.75 simulated
+  hours. Same sweep: 22,008 on a fast platform (like run2plus), 16/16 with 3 h polls and with stalls at 3 h
+  polls (like or better than default). Weaker than default only for a sudden stall on a fast platform
+  (13 vs 14/16) and for refused actions (never seen live).
 - **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
   English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
   commit as the change they describe. External skills are optional: nothing in the repo depends on them.

@@ -173,4 +173,17 @@ def test_planner_profiles(spec):
     assert r2.rescue and r2.urgent_late, "run2plus keeps the zero-cost protections"
     with pytest.raises(ValueError):
         make_planner(spec, lambda a, n: [100.0] * 24, "nope")
-    assert set(PROFILES) == {"default", "run2plus"}
+    assert set(PROFILES) == {"default", "run2plus", "adaptive"}
+
+
+def test_adaptive_profile_protects_only_once_the_platform_is_slow(spec):
+    """adaptive plans like run 2 while status replies come quickly and switches the stall protections on by
+    itself after a gap longer than protect_gap_h (dynamic, not tuned to one scenario)."""
+    from greenops.planner import make_planner
+    p = make_planner(spec, lambda a, n: [100.0] * 24, "adaptive")
+    assert (p.slack_h, p.commit_h) == (0, -1) and p.rescue and p.urgent_late
+    p.gap_h = 0.25
+    assert not p._protect()
+    p.gap_h = 3.0
+    assert p._protect() and p._flat_slack() >= p.gap_factor * 3.0
+    assert make_planner(spec, lambda a, n: [100.0] * 24)._protect(), "the default profile always protects"
