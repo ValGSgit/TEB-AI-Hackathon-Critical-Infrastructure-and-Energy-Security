@@ -100,7 +100,13 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
   one action took 21 s. 26 polls failed on our 10 s read timeout. Planning never took more than 0.23 s.
   Only 42 hourly samples. VMs idled 20.4 h in total after delivery (run 2: 2.2 h), because we learn about a
   delivery only from a status reply. Fix in item 0: a 30 s status timeout and a short retry.
-- Score and carbon: platform dashboard only (run ID in `.local/run4/provenance.json`).
+- **Lower score than run 2** (dashboard, values in `.local/run{2,4}/platform_score.txt`), all from electricity.
+  Cause: spare time was judged on 1 worker, so the parallel jobs (w-14, w-13, w-05, up to 6/4/10 workers) were
+  planned first and created 40–60 h earlier than in run 2. They took the early quota, and others were squeezed:
+  w-04 on a 16-vCPU machine with no room to pause (91 of 91 hours), w-11 with no pauses, w-09 on the slower GPU
+  (43 h instead of 21.5 h). Fix (fix/urgent-when-late): judge spare time on `max_workers` again (run 2's order),
+  and also mark a job urgent when its only slot ends past its soft end. Offline at 240 vCPUs: 15/15 on every
+  seed, less carbon than with 1 worker; at 320 vCPUs unchanged (22,010, 13.35 kg).
 
 ## Plan, in order
 
