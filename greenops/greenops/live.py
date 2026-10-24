@@ -352,6 +352,7 @@ def main():
     W = {w.id: w for w in spec.workloads}
 
     while t_end is None or time.monotonic() < t_end:
+        t0 = time.monotonic()
         try:
             raw = live.status()
             if raw is None:
@@ -369,6 +370,7 @@ def main():
             samples.flush()
             last_sample = int(st["now_h"])
         where = {a["vm_id"]: a["zone"] for r in st["workloads"] for a in r["assignments"]}
+        t1 = time.monotonic()
         try:
             actions = planner.bootstrap(st) if st["state"] == "READY" else planner.decide(st)
         except ResidencyViolation:
@@ -377,6 +379,7 @@ def main():
             print(json.dumps({"warning": f"planning failed: {type(e).__name__}: {str(e)[:200]}"}))
             time.sleep(1)
             continue
+        t2 = time.monotonic()
         for act in actions:
             try:
                 if act[0] == "create":
@@ -390,6 +393,10 @@ def main():
                 raise                                   # never happens by construction; stop hard if it does
             except Exception as e:                      # quota, transient API errors: re-planned next tick
                 planner.rejected(st["now_h"], act, str(e)[:200])
+        t3 = time.monotonic()
+        if t3 - t0 > 2.0:      # at 720x one wall second is 0.2 simulated hours: say where a slow poll went
+            print(json.dumps({"slow_poll_s": round(t3 - t0, 2), "status_s": round(t1 - t0, 2), "plan_s": round(t2 - t1, 2),
+                              "act_s": round(t3 - t2, 2), "actions": len(actions), "t": round(st["now_h"], 2)}))
         for d in planner.decisions[seen:]:
             log.write(json.dumps(d) + "\n")
             print(json.dumps(d))

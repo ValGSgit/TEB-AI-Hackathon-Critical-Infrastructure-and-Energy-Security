@@ -63,6 +63,8 @@ class Planner:
     shift: bool = True                 # False = start as early as quota allows (ablation)
     commit_h: int = 2                  # a planned start this close is kept, not re-optimized away (-1 = off)
     slack_h: int = 4                   # plan to end this many hours before `margin_h`, when it fits (0 = off)
+    flex_workers: int = 1              # spare time is judged on this many workers (0 = the job's max_workers)
+    commit_first: bool = True          # kept starts get quota before flexible jobs
     name: str = "carbon-aware"
     placements: dict = field(default_factory=dict)    # workload id -> Placement (once created)
     vm_profile: dict = field(default_factory=dict)    # vm id -> profile id
@@ -72,6 +74,8 @@ class Planner:
     _last_h: float | None = None
     _plan_hour: int | None = None
     _state: dict = field(default_factory=dict)        # workload id -> last logged state
+    rescue: bool = True                # a job left without a slot is planned first, created jobs flat out if needed
+    urgent: set = field(default_factory=set)          # jobs that once found no slot: planned right after created ones
 
     def __post_init__(self):
         self.W = {w.id: w for w in self.spec.workloads}
@@ -146,7 +150,7 @@ class Planner:
             cap[fam][a:b] -= g
 
     # ------------------------------------------------------------ planning
-    def _best_block(self, w, pl, need_h, h0, first, last, est, cap, fixed_start: bool):
+    def _best_block(self, w, pl, need_h, h0, first, last, est, cap, fixed_start: bool, stretch=None):
         """Cheapest block for one placement: (grams, start, end, run hours) or None."""
         z = self.Z[pl.zone_id]
         p = self.P[pl.profile_id]
@@ -155,7 +159,7 @@ class Planner:
         best = None
         starts = [first] if fixed_start else range(first, last - k + 2)
         for s in starts:
-            for m in self.stretch:
+            for m in stretch or self.stretch:
                 L = max(k, math.ceil(k * m))
                 e = s + L
                 if e > last + 1:
@@ -172,6 +176,25 @@ class Planner:
         return best
 
     def _replan(self, rows: dict, now: float):
+        """Plan every job; if one is left without a slot, mark it urgent (kept until it is created) and plan again
+        with it ahead of the flexible jobs; if it still has none, also run the created jobs flat out, which hands
+        back the quota their pauses would hold late in the run."""
+        plan = self._plan_pass(rows, now, flat=False)
+        if self.rescue:
+            starved = {wid for wid, r in rows.items() if self._open(wid, r) and wid not in plan}
+            if starved - self.urgent:
+                self.urgent |= starved
+                plan = self._plan_pass(rows, now, flat=False)
+            if any(self._open(wid, r) and wid not in plan for wid, r in rows.items()):
+                plan = self._plan_pass(rows, now, flat=True)
+        self.urgent = {wid for wid in self.urgent if not rows.get(wid, {}).get("assignments") and wid in rows}
+        self.plan = plan
+
+    def _open(self, wid, r) -> bool:
+        """Not delivered and not created yet (only those can be left without a slot)."""
+        return not r["final_output_delivered"] and not r["assignments"] and wid not in self.placements
+
+    def _plan_pass(self, rows: dict, now: float, flat: bool) -> dict:
         est = self._estimates(now)
         h0 = int(now)
         q = self.spec.quotas
@@ -192,9 +215,10 @@ class Planner:
             soft = last - self.slack_h
             old = self.plan.get(wid)
             commit = self.commit_h >= 0 and not created and old is not None and old.start <= h0 + self.commit_h
-            flex = (last - first + 1) - self._run_hours(w, r, self._fastest(w), False)
+            flex = (last - first + 1) - self._run_hours(w, r, self._fastest(w, self.flex_workers), False)
             # created jobs first, then kept starts (they are about to be created), then by flexibility
-            jobs.append((0 if created else 1 if commit else 2, flex, wid, created, commit, first, last, soft))
+            rank = 0 if created else 1 if wid in self.urgent else 2 if commit and self.commit_first else 3
+            jobs.append((rank, flex, wid, created, commit, first, last, soft))
         jobs.sort()
         prev, plan = self.plan, {}
         for _c, _flex, wid, created, commit, first, last, soft in jobs:
@@ -214,7 +238,8 @@ class Planner:
                     if end < last and lo + math.ceil(need) - 1 > end and not created:
                         continue                  # the soft end does not fit this placement
                     b = self._best_block(w, pl, need, h0, lo, max(end, lo + math.ceil(need) - 1) if created else end,
-                                         est, cap, fixed_start=created or commit)
+                                         est, cap, fixed_start=created or commit,
+                                         stretch=(1.0,) if flat and created else None)
                     if b and (best is None or b[0] < best[0][0] or (not self.shift and b[1] < best[0][1])):
                         best = (b, pl)
                 if best:
@@ -235,7 +260,7 @@ class Planner:
             (g, s, e, run), pl = best
             self._take(cap, pl, s, e)
             plan[wid] = Slot(pl, s, e, run, g, commit)
-        self.plan = plan
+        return plan
 
     def _adopt(self, w, r):
         """VMs we have no record of (controller restarted): rebuild the placement from what is running."""
@@ -253,9 +278,10 @@ class Planner:
         self.decisions.append({"t": round(self._last_h or 0.0, 2), "workload": w.id, "action": "adopt",
                                "reason": "existing VMs found; continuing with them", "zone": zone, "profile": pid})
 
-    def _fastest(self, w) -> Placement:
+    def _fastest(self, w, workers: int = 0) -> Placement:
         p = max((p for p in self.spec.profiles if suitable(p, w)), key=lambda p: throughput(p, w))
-        return Placement(next(iter(p.zones)) if p.zones else self.spec.zones[0].id, p.id, w.max_workers)
+        return Placement(next(iter(p.zones)) if p.zones else self.spec.zones[0].id, p.id,
+                         min(workers, w.max_workers) if workers else w.max_workers)
 
     # ------------------------------------------------------------ main step
     def decide(self, status: dict) -> list:
