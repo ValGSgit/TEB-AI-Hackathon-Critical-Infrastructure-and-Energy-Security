@@ -60,6 +60,12 @@
   anyway, safe mode starts every stopped VM of an unfinished workload. The pause threshold is
   max(`flat_slack_h`, `gap_factor` = 3 × the longest gap between status replies). Reason: in run 6 forecast timeouts
   made planning fail at hour 101, and a job paused at hour 90 stayed stopped until the run ended.
+- **ADR-0017**: Named planner profiles, chosen with `GREENOPS_PLANNER` (default: `default`, the judged configuration).
+  `run2plus` plans like practice run 2 (no soft end, no kept starts, no finish / spare-time rules) and keeps the
+  protections that cost nothing on a normal run (no job may starve, the end-of-run fix, the whole live loop). Adverse
+  sweep, 192 runs each: run2plus is equal to run 2's code everywhere except tighter quota, where it is far safer.
+  Against `default` it gains 73 points on a fast platform and loses the bonus on 9 of 16 grids when polls come every
+  3 h. Run 7 and run 8 (`default`, fast platform) scored within 8 points of each other.
 - **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
   English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
   commit as the change they describe. External skills are optional: nothing in the repo depends on them.

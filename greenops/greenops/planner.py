@@ -405,3 +405,19 @@ class Planner:
             return
         self._state[wid] = key
         self.decisions.append({"t": round(now, 2), "workload": wid, "action": action, "reason": reason, **kw})
+
+
+# Named settings for live runs (GREENOPS_PLANNER). "default" is the tested, judged configuration.
+# "run2plus" plans like practice run 2 (no soft end, no kept starts, pauses until the end) but keeps every
+# protection that costs nothing on a normal run: no job may starve, the end-of-run fix, and the whole live
+# loop. Offline it gains ~0.3% on a fast platform and loses the bonus on most grids when the platform is slow.
+PROFILES = {
+    "default": {},
+    "run2plus": dict(slack_h=0, commit_h=-1, finish_h=0, flat_slack_h=0, gap_factor=0),
+}
+
+
+def make_planner(spec, forecast, profile: str = "default") -> Planner:
+    if profile not in PROFILES:
+        raise ValueError(f"unknown planner profile {profile!r}; choose one of {sorted(PROFILES)}")
+    return Planner(spec, forecast, name=f"carbon-aware/{profile}", **PROFILES[profile])

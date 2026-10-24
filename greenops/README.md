@@ -42,7 +42,7 @@ Windows checkouts.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                       # 96 tests (on Windows: set PYTHONUTF8=1 for the exoscale package)
+python -m pytest -q                       # 97 tests (on Windows: set PYTHONUTF8=1 for the exoscale package)
 python -m greenops.play --seeds 4         # policy comparison on the offline game
 python -m greenops.live --probe --out .local/probe     # read-only API checks, creates nothing
 python -m greenops.live --out .local/run1              # live run
@@ -74,6 +74,8 @@ config `greenops-exo.json` (both git-ignored), or the environment:
 At most two unfinished practice runs per team. Judging is a fresh run at 720×.
 
 ### Container (what the judges run)
+
+Planner profile: `GREENOPS_PLANNER` (`default`, the judged configuration, or `run2plus`; ADR-0017).
 
 ```bash
 docker build -t greenops greenops
@@ -142,7 +144,7 @@ never to one scenario.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q          # the full suite (96 tests, both paths)
+python -m pytest -q          # the full suite (97 tests, both paths)
 python compare.py 20         # policy comparison on 20 practice scenarios
 python -m greenops.experiments --seeds 12   # experiment ladder, one change at a time
 ```
