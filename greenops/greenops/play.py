@@ -34,10 +34,12 @@ class Naive(Planner):
 
 
 def policies(spec: Spec, forecast):
+    """The ladder: one lever at a time, every rung on the profile the image runs, so only that lever changes."""
+    d = PROFILES[DEFAULT_PROFILE]
     return [Naive(spec, forecast, pause=False, name="naive"),
-            Planner(spec, forecast, pause=False, shift=False, name="+zone"),
-            Planner(spec, forecast, pause=False, name="+zone+shift"),
-            Planner(spec, forecast, name="carbon-aware", **PROFILES[DEFAULT_PROFILE])]   # what the image runs
+            Planner(spec, forecast, pause=False, shift=False, name="+zone", **d),
+            Planner(spec, forecast, pause=False, name="+zone+shift", **d),
+            Planner(spec, forecast, name="carbon-aware", **d)]   # what the image runs
 
 
 def apply(game: Game, planner: Planner, actions) -> None:

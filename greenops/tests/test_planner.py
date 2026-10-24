@@ -120,6 +120,21 @@ def test_no_job_starves_when_quota_is_tight(spec, seed):
     assert old.score()["delivered"] < 15, "the stress case must still reproduce the starvation"
 
 
+@pytest.mark.parametrize("seed", [0, 3, 11])
+def test_the_judged_default_is_legal_on_time_and_survives_tight_quota(spec, seed):
+    """The image runs DEFAULT_PROFILE (adaptive) when GREENOPS_PLANNER is unset. On a fast platform (a decision every
+    0.25 h, so its stall rules stay off) it must deliver 15/15, delete every VM and stay legal, with the real quota
+    and with 240 vCPUs (the crowding case of test_no_job_starves_when_quota_is_tight)."""
+    import dataclasses
+    from greenops.planner import make_planner
+    tight = dataclasses.replace(spec, quotas=dataclasses.replace(spec.quotas, max_vcpus=240, max_vms=16))
+    for s in (spec, tight):
+        game, planner = run(s, seed, lambda s_, f: make_planner(s_, f))
+        assert planner.name == "carbon-aware/adaptive" and not planner._protect(), "fast platform: stall rules off"
+        assert not game.disqualified and game.score()["delivered"] == 15 and game.score()["all_done"]
+        assert not game.vms, "every VM is deleted after delivery"
+
+
 def test_planning_never_crashes_near_the_end_of_the_run(spec):
     """A created job whose remaining work runs past hour 120 used to index past the cost array (IndexError),
     which in a live run would fail every poll. It must fall back to running every hour instead."""

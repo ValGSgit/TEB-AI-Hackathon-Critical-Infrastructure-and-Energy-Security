@@ -140,8 +140,8 @@ Electricity is **synthetic**: 8 random grids built from generic country profiles
 | Policy (added one lever at a time) | Carbon (mean ± sd) | vs naive | Energy | GPU carbon | Score | On time |
 | --- | --- | --- | --- | --- | --- | --- |
 | Naive: first legal zone, fastest profile, start at release | 24.63 ± 0.77 kg | – | 124.4 kWh | 15.13 kg | 20,323 | 15/15 |
-| + **where** and **which hardware** | 14.12 ± 0.43 kg | **−43%** | 106.7 kWh | 8.47 kg | 21,886 | 15/15 |
-| + **when** to start | 14.07 ± 0.43 kg | −43% | 107.3 kWh | 8.43 kg | 21,894 | 15/15 |
+| + **where** and **which hardware** | 14.10 ± 0.42 kg | **−43%** | 107.2 kWh | 8.46 kg | 21,889 | 15/15 |
+| + **when** to start | 14.07 ± 0.42 kg | −43% | 106.9 kWh | 8.46 kg | 21,894 | 15/15 |
 | + **stop through dirty hours** (full planner, `adaptive`) | **13.35 ± 0.45 kg** | **−46%** | 107.9 kWh | 7.94 kg | **22,013** | **15/15** |
 
 - Average grid intensity of the electricity used drops from 198 to 124 g/kWh, and energy drops 13%.

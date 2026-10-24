@@ -60,7 +60,8 @@
   anyway, safe mode starts every stopped VM of an unfinished workload. The pause threshold is
   max(`flat_slack_h`, `gap_factor` = 3 × the longest gap between status replies). Reason: in run 6 forecast timeouts
   made planning fail at hour 101, and a job paused at hour 90 stayed stopped until the run ended.
-- **ADR-0017**: Named planner profiles, chosen with `GREENOPS_PLANNER` (default: `default`, the judged configuration).
+- **ADR-0017**: Named planner profiles, chosen with `GREENOPS_PLANNER` (default: `default`, the judged configuration;
+  ADR-0018 makes `adaptive` the default and renames the old one `safe`).
   `run2plus` plans like practice run 2 (no soft end, no kept starts, no finish / spare-time rules) and keeps the
   protections that cost nothing on a normal run (no job may starve, the end-of-run fix, the whole live loop). Adverse
   sweep, 192 runs each: run2plus is equal to run 2's code everywhere except tighter quota, where it is far safer.
@@ -73,9 +74,13 @@
   (13 vs 14/16) and for refused actions (never seen live).
 - **ADR-0018**: `adaptive` is the default profile, i.e. what the image runs with no `GREENOPS_PLANNER` set, which is
   what the judges get. The old always-on configuration is the named profile `safe` (`default` is an alias of the
-  default). Reason: practice runs 9 and 10 with `adaptive` scored within 12 and 2 points of our best run (run 2),
-  15/15 with every safety net on, while `safe` scored about 120 points lower in runs 7 and 8. The offline
-  benchmark, the site and the Control Room now use the same default.
+  default). Reason: the choice rests on general evidence, not on the practice scenario. Offline (8 synthetic grids)
+  `adaptive` scores 22,013 against 21,945 for `safe`, 15/15 on every grid, and the ADR-0017 adverse sweep keeps it
+  at 16/16 with 3 h polls and stalls. Live, practice runs 9 and 10 with `adaptive` scored within 12 and 1.35 points
+  of our best run (run 2), 15/15 with every safety net on, while `safe` scored about 120 points lower in runs 7
+  and 8. Known cost: once one reply gap exceeds 0.75 h the stall rules stay on for the rest of the run (`gap_h` is
+  the longest gap seen), and a sudden stall on an otherwise fast platform is its weakest case (ADR-0017). The
+  offline benchmark (every rung of the ladder), the site and the Control Room use the same default.
 - **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
   English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
   commit as the change they describe. External skills are optional: nothing in the repo depends on them.

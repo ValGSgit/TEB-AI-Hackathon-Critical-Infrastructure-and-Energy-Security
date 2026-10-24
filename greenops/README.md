@@ -100,8 +100,8 @@ fetches; the budget is 5 s. (Measured once, 23 Oct, commit `b695511`, before the
 | Policy | Carbon (mean ± sd) | Energy | Score | On time |
 | --- | --- | --- | --- | --- |
 | naive (first legal zone, fastest profile, start at release) | 24.63 ± 0.77 kg | 124.4 kWh | 20,323 | 15/15 |
-| + cleanest zone and efficient hardware | 14.12 ± 0.43 kg | 106.7 kWh | 21,886 | 15/15 |
-| + time shift | 14.07 ± 0.43 kg | 107.3 kWh | 21,894 | 15/15 |
+| + cleanest zone and efficient hardware | 14.10 ± 0.42 kg | 107.2 kWh | 21,889 | 15/15 |
+| + time shift | 14.07 ± 0.42 kg | 106.9 kWh | 21,894 | 15/15 |
 | carbon-aware (blocks with stop/resume, `adaptive`) | 13.35 ± 0.45 kg | 107.9 kWh | 22,013 | 15/15 |
 
 That is −46% against naive, mostly from *where* and *which hardware*. These are synthetic grids. `game.score()`
