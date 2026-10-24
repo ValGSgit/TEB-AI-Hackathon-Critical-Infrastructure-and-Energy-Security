@@ -185,3 +185,19 @@ def test_forecast_horizons_are_allowed_values():
     assert inspect.signature(Live.forecast).parameters["horizon"].default in (6, 24)
     assert inspect.signature(make_grid(0, ["DE"]).forecast).parameters["horizon"].default in (6, 24)
     assert Planner(load(), lambda a, n: [1.0] * 24).horizon in (6, 24) if hasattr(Planner, "horizon") else True
+
+
+def test_planner_calls_forecast_with_area_and_now_only(spec):
+    """Rule 2 as an interface: the planner's only electricity input is forecast(area, now), called with the
+    area name and the current hour, nothing else (ported from PR #16)."""
+    calls = []
+
+    def spy(area, *rest):
+        calls.append((area, rest))
+        return [100.0] * 24
+
+    Planner(spec, spy)._estimates(5.0)
+    assert calls
+    assert {a for a, _ in calls} == {s.area for s in spec.sites.values()}, "one call per area"
+    for area, rest in calls:
+        assert isinstance(area, str) and len(rest) == 1 and isinstance(rest[0], float)
