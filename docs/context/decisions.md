@@ -53,6 +53,11 @@
   `flat_slack_h` = 12 h of spare time also stops pausing (adverse-condition sweep of 192 runs: fewer misses after
   long stalls and refused actions, about −9 points on a normal platform). Not adopted: marking a job urgent after a
   refused create (no measurable effect).
+- **ADR-0016**: An unreachable platform must never leave unfinished work stopped. A failed forecast request reuses
+  this run's latest forecast for the area (shifted to now; still only this run's data, rule 2). If planning fails
+  anyway, safe mode starts every stopped VM of an unfinished workload. The pause threshold is
+  max(`flat_slack_h`, `gap_factor` = 3 × the longest gap between status replies). Reason: in run 6 forecast timeouts
+  made planning fail at hour 101, and a job paused at hour 90 stayed stopped until the run ended.
 - **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
   English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
   commit as the change they describe. External skills are optional: nothing in the repo depends on them.

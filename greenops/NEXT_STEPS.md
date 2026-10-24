@@ -9,7 +9,7 @@ Written after day 1 (Fri 23 Oct 2026), after two practice runs. Start here on Sa
   platform refused no actions. It is **first on the preliminary leaderboard**. The carbon and score figures are on
   the run dashboard only; real-run values stay out of git (rule 2).
 - Everything is on `main`: PRs #6–#11 (#9: the controller never exits mid-run; #11: Oliver's residency/forecast
-  tests and UI). Tests: `python -m pytest -q` from `greenops/` (83 tests, about 2 min).
+  tests and UI). Tests: `python -m pytest -q` from `greenops/` (86 tests, about 2 min).
 - PR #5 (Oliver, `AGENTS.md` + `docs/context/`) is merged, with `docs/context/` updated for the real-challenge path
   (ADR-0007 to ADR-0010). Keep those docs current in the same commit as each change.
 
@@ -126,6 +126,21 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
   job with ≤ 12 h of spare time stops pausing (fewer misses after stalls, −9 points normally).
 - Also fixed: a block for a created job could run past hour 120 and crash planning with an IndexError,
   which live would fail every poll. Never seen live; found by the stall test.
+
+## Run 6 (720×, Docker, commit `2eb3677`): 12/15 in our logs, the slowest platform yet
+
+- Status replies took 20 s at the median (max 36 s), so there was a decision only every 3–6 simulated hours. From
+  hour 90 to 101 there was no reply (36 s status + 17.6 s action). At 101 the forecast requests timed out
+  (20 s), **planning failed, and the controller did nothing**; the next status also timed out and the run ended.
+- w-11 had been paused at hour 90 with 13 h of spare time (the rule was 12 h) and stayed stopped: missed.
+  w-05 and w-13 were still running at hour 101 (1233/1440 and 1154/1440); our logs end there, so check
+  the dashboard for whether they delivered.
+- Fixes (fix/never-idle-when-blind, ADR-0016):
+  - a failed forecast request reuses this run's latest forecast for that area, shifted to the current hour,
+    and an area that failed in this hour's prefetch is not fetched a second time;
+  - if planning still fails, safe mode starts every stopped VM of an unfinished workload;
+  - the pause threshold grows with the platform's slowness: a created job stops pausing when its spare time
+    is at most max(12 h, 3 × the longest gap between status replies seen).
 
 ## Plan, in order
 

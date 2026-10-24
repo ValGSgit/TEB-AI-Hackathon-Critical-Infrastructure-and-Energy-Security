@@ -141,3 +141,44 @@ def test_status_waits_for_a_slow_platform(monkeypatch):
     lv.a, lv.work, lv.http = {"key": "EXOtest", "secret": "s"}, "https://example.test/runs/r1/work/v1/status", H()
     assert lv.status() == {"ok": True}
     assert seen["timeout"] == (5, live.STATUS_TIMEOUT_S) and live.STATUS_TIMEOUT_S >= 25
+
+
+def test_forecast_falls_back_to_this_runs_last_forecast():
+    """Run 6: forecast requests timed out at hour 101, planning failed and a paused job stayed stopped past its
+    deadline. A failed fetch now reuses the latest forecast this run published, shifted to the current hour."""
+    from greenops import live
+    lv = live.Live.__new__(live.Live)
+    lv.fc_cache, lv.fc_last, lv.fc_failed = {}, {}, set()
+    calls = {"n": 0}
+
+    def fetch(area, now_h, horizon):
+        calls["n"] += 1
+        if now_h >= 10:
+            raise TimeoutError("read timed out")
+        return [float(int(now_h) + k) for k in range(horizon)]
+
+    lv._fetch_forecast = fetch
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert lv.forecast("AT", 7.0)[:2] == [7.0, 8.0]
+        v = lv.forecast("AT", 12.0)
+    assert len(v) == 24 and v[:3] == [12.0, 13.0, 14.0] and v[-1] == 30.0      # shifted, padded with the last value
+    lv.fc_failed.add(("AT", 13))
+    n = calls["n"]
+    with contextlib.redirect_stdout(io.StringIO()):
+        lv.forecast("AT", 13.0)
+    assert calls["n"] == n, "an area whose prefetch failed this hour is not fetched a second time"
+
+
+def test_safe_mode_starts_stopped_work_when_planning_fails():
+    from greenops import live
+    from greenops.planner import Planner
+    from greenops.spec import load
+    p = Planner(load(), lambda a, n: [100.0] * 24)
+    st = {"now_h": 101.0, "workloads": [
+        {"id": "w-11-dach-simulation", "final_output_delivered": False,
+         "assignments": [{"vm_id": "a", "zone": "ch-dk-2", "state": "stopped"}]},
+        {"id": "w-05-eu-render", "final_output_delivered": False,
+         "assignments": [{"vm_id": "b", "zone": "fr-par-1", "state": "running"}]},
+        {"id": "w-03-med-analysis", "final_output_delivered": True,
+         "assignments": [{"vm_id": "c", "zone": "es-mad-1", "state": "stopped"}]}]}
+    assert live.safe_actions(p, st) == [("start", "a", "w-11-dach-simulation")]
