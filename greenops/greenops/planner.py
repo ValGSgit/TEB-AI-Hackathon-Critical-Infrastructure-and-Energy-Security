@@ -179,14 +179,15 @@ class Planner:
         """Plan every job; if one is left without a slot, mark it urgent (kept until it is created) and plan again
         with it ahead of the flexible jobs; if it still has none, also run the created jobs flat out, which hands
         back the quota their pauses would hold late in the run."""
-        plan = self._plan_pass(rows, now, flat=False)
+        est = self._estimates(now)        # one forecast fetch per area per re-plan, shared by every pass
+        plan = self._plan_pass(rows, now, est, flat=False)
         if self.rescue:
             starved = {wid for wid, r in rows.items() if self._open(wid, r) and wid not in plan}
             if starved - self.urgent:
                 self.urgent |= starved
-                plan = self._plan_pass(rows, now, flat=False)
-            if any(self._open(wid, r) and wid not in plan for wid, r in rows.items()):
-                plan = self._plan_pass(rows, now, flat=True)
+                plan = self._plan_pass(rows, now, est, flat=False)
+            if any(self._open(wid, r) and wid not in plan and self._can_finish(wid, r, now) for wid, r in rows.items()):
+                plan = self._plan_pass(rows, now, est, flat=True)
         self.urgent = {wid for wid in self.urgent if not rows.get(wid, {}).get("assignments") and wid in rows}
         self.plan = plan
 
@@ -194,8 +195,13 @@ class Planner:
         """Not delivered and not created yet (only those can be left without a slot)."""
         return not r["final_output_delivered"] and not r["assignments"] and wid not in self.placements
 
-    def _plan_pass(self, rows: dict, now: float, flat: bool) -> dict:
-        est = self._estimates(now)
+    def _can_finish(self, wid, r, now: float) -> bool:
+        """Could the job still be delivered in time at its fastest? Only then is running others flat out worth it."""
+        w = self.W[wid]
+        start = max(now, w.release_h - self.spec.boot_h)
+        return start + self._run_hours(w, r, self._fastest(w), False) <= w.deadline_h
+
+    def _plan_pass(self, rows: dict, now: float, est: dict, flat: bool) -> dict:
         h0 = int(now)
         q = self.spec.quotas
         cap = {"v": np.full(self.H + 1, q.max_vcpus, dtype=float), "n": np.full(self.H + 1, q.max_vms, dtype=float)}

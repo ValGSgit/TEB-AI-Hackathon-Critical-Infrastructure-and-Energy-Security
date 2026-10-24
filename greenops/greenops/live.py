@@ -21,7 +21,9 @@ import hmac
 import json
 import os
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -119,13 +121,15 @@ class Limiter:
     """Client-side pacing under the published limits (cloud+grid 20/s, work 5/s)."""
 
     def __init__(self, per_s: float):
-        self.gap, self.next = 1.0 / per_s, 0.0
+        self.gap, self.next, self.lock = 1.0 / per_s, 0.0, threading.Lock()
 
     def wait(self):
-        now = time.monotonic()
-        if now < self.next:
-            time.sleep(self.next - now)
-        self.next = max(now, self.next) + self.gap
+        with self.lock:                       # forecasts are fetched from several threads at once
+            now = time.monotonic()
+            slot = max(now, self.next)
+            self.next = slot + self.gap
+        if slot > now:
+            time.sleep(slot - now)
 
 
 # ---------------------------------------------------------------- the three APIs
@@ -149,6 +153,7 @@ class Live:
         self.http.mount("http://", guard)
         self.http.mount("https://", guard)
         self.types, self.template = {}, {}
+        self.fc_cache = {}                    # (area, hour, horizon) -> values: forecasts change at most hourly
         self.vm_zone = {}
 
     def _client(self, url):
@@ -175,6 +180,21 @@ class Live:
 
     # ---- grid forecasts of this run only
     def forecast(self, area: str, now_h: float, horizon: int = 24) -> list:
+        key = (area, int(now_h), horizon)
+        if key not in self.fc_cache:
+            self.fc_cache = {k: v for k, v in self.fc_cache.items() if k[1] >= int(now_h) - 1}
+            self.fc_cache[key] = self._fetch_forecast(area, now_h, horizon)
+        return self.fc_cache[key]
+
+    def prefetch(self, areas, now_h: float) -> None:
+        """Fetch every area's forecast for this hour in parallel, so the hourly re-plan waits for one round trip
+        instead of eight in a row (at 720x each wall second is 0.2 simulated hours)."""
+        todo = [a for a in areas if (a, int(now_h), 24) not in self.fc_cache]
+        with ThreadPoolExecutor(max_workers=min(8, len(todo) or 1)) as ex:
+            for a, vals in zip(todo, ex.map(lambda a: self._fetch_forecast(a, now_h, 24), todo)):
+                self.fc_cache[(a, int(now_h), 24)] = vals
+
+    def _fetch_forecast(self, area: str, now_h: float, horizon: int) -> list:
         self.api.wait()
         r = self.http.get(self.grid + "/carbon-intensity/forecast", timeout=20, allow_redirects=False,
                          params={"zone": area, "horizonHours": horizon}, headers={"auth-token": self.grid_secret})
@@ -350,6 +370,7 @@ def main():
     names, seen, last_sample = {}, 0, -1
     t_end = None if a.max_wall is None else time.monotonic() + a.max_wall
     W = {w.id: w for w in spec.workloads}
+    areas = sorted({site.area for site in spec.sites.values()})
 
     while t_end is None or time.monotonic() < t_end:
         t0 = time.monotonic()
@@ -370,6 +391,22 @@ def main():
             samples.flush()
             last_sample = int(st["now_h"])
         where = {a["vm_id"]: a["zone"] for r in st["workloads"] for a in r["assignments"]}
+        # deletes first: a delivered job's VMs only draw idle power, and nothing below may hold them up
+        for r in st["workloads"]:
+            if r["final_output_delivered"] and r["assignments"]:
+                ids = [x["vm_id"] for x in r["assignments"]]
+                for vm in ids:
+                    try:
+                        live.act("delete", vm, where.get(vm))
+                    except Exception as e:              # retried next poll: the status still lists the VM
+                        planner.rejected(st["now_h"], ("delete", vm, r["id"]), str(e)[:200])
+                planner._log(st["now_h"], r["id"], "delete", "final output delivered; deleting ends idle draw", vms=ids)
+                r["assignments"] = []
+        if int(st["now_h"]) != planner._plan_hour:      # the planner re-plans this poll: fetch forecasts in parallel
+            try:
+                live.prefetch(areas, st["now_h"])
+            except Exception as e:                      # the planner fetches what is missing itself
+                print(json.dumps({"warning": f"forecast prefetch failed: {type(e).__name__}: {str(e)[:200]}"}))
         t1 = time.monotonic()
         try:
             actions = planner.bootstrap(st) if st["state"] == "READY" else planner.decide(st)

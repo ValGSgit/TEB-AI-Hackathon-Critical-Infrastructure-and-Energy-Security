@@ -98,9 +98,16 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
      created jobs until it is created. If it still has no slot, created jobs are planned flat out. Spare
      time is judged on 1 worker. Offline with 240 vCPUs: 13.0 → 15.0/15 on 6 seeds. With 320: unchanged.
      Test: `test_no_job_starves_when_quota_is_tight`.
+   - Done, faster loop (ADR-0014): forecasts are fetched once per re-plan (the rescue pass re-plans up to
+     3 times an hour) and cached per area and hour. The 8 areas are fetched in parallel at the hour boundary.
+     Delivered VMs are deleted before anything else in the poll. Against the fake platform with 0.3 s per
+     forecast request, a full run takes 27.9 s of wall time instead of 159.6 s (same 15/15).
+   - Done, flat-out mode only for a starved job that can still finish at its fastest. Otherwise every
+     created job would skip its pauses for nothing.
    - Done, slow-poll logging: any poll over 2 s prints `slow_poll_s` with the status/plan/act split to the
-     console. Read `console.log` after run 4 and fix what it shows (forecast caching, deleting before
-     re-planning, a shorter `--poll`).
+     console. Read `console.log` after run 4.
+   - Checked, no change: all legal zones instead of the top 2 per profile (16 seeds: identical score and
+     carbon, planning 2.4× slower).
    - Run 4 the same way as run 3, then `python -m greenops.analyze .local/run{2,3,4}` and the dashboard.
 
 1. **Stop the postponing** (`planner.py`, `_replan`): done offline; live, run 3 shows it is not enough on its own.

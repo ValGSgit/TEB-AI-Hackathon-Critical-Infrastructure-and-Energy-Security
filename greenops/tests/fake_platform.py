@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import re
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from greenops.game import Game, make_grid
@@ -15,11 +16,12 @@ from greenops.spec import load, to_ts
 
 
 class Fake:
-    def __init__(self, seed=1, step_h=0.25):
+    def __init__(self, seed=1, step_h=0.25, forecast_delay_s=0.0):
         self.spec = load()
         self.grid = make_grid(seed, {s.area for s in self.spec.sites.values()})
         self.game = Game(self.spec, self.grid)
         self.step_h, self.started, self.calls = step_h, False, []
+        self.forecast_delay_s = forecast_delay_s        # a slow grid API, to measure the controller's latency
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
         self.base = f"http://127.0.0.1:{self.server.server_port}"
         self.cloud = self.base + "/runs/r1/cloud/v2"
@@ -74,6 +76,7 @@ class Fake:
                 if path.startswith("/runs/r1/grid/v4/carbon-intensity/forecast"):
                     q = dict(kv.split("=") for kv in query.split("&"))
                     assert q["horizonHours"] in ("6", "24")
+                    time.sleep(fake.forecast_delay_s)
                     vals = fake.grid.forecast(q["zone"], g.now, int(q["horizonHours"]))
                     return self._send(200, {"zone": q["zone"], "forecast": [{"datetime": to_ts(int(g.now) + k), "carbonIntensity": v}
                                                                             for k, v in enumerate(vals)], "updatedAt": to_ts(int(g.now))})
