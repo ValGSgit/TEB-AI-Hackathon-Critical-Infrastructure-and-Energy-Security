@@ -204,3 +204,79 @@ def test_actions_go_out_in_parallel_and_refusals_reach_the_planner():
     assert _t.monotonic() - t0 < 1.0
     assert [d for d in p.decisions if d["action"] == "rejected"] == [
         {"t": 50.0, "workload": "w-02-ch-reporting", "action": "rejected", "reason": "start refused: 409 conflict"}]
+
+
+def test_limiter_under_concurrency(monkeypatch):
+    """Live.prefetch shares one Limiter between up to 8 threads: 8 threads x 5 calls must each get their own
+    slot, 1/50 s apart. The clock is frozen and the sleeps are recorded, so the check is exact on any OS
+    (time.monotonic ticks every ~15.6 ms on Windows before Python 3.13)."""
+    import threading
+    import types
+    from greenops import live
+
+    slept, lock = [], threading.Lock()
+
+    def sleep(d):
+        with lock:
+            slept.append(d)
+
+    monkeypatch.setattr(live, "time", types.SimpleNamespace(monotonic=lambda: 100.0, sleep=sleep))
+    lim = live.Limiter(per_s=50)
+    threads = [threading.Thread(target=lambda: [lim.wait() for _ in range(5)]) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5)
+    assert sorted(slept) == pytest.approx([k / 50 for k in range(1, 40)])     # the first call does not wait
+
+
+def test_status_signature_is_pinned():
+    """Live.status computes an EXO2 HMAC-SHA256 signature over the request path and a fixed expires value.
+    Verify the exact header shape and that recomputing the signature independently matches."""
+    import base64
+    import hashlib
+    import hmac as hmac_mod
+    import unittest.mock
+
+    from greenops import live
+
+    fixed_time = 1_700_000_000.0
+    secret = "my-secret"
+    key = "EXOtest"
+    work_path = "/runs/r1/work/v1/status"
+    expires = int(fixed_time) + 60
+
+    seen_header = {}
+
+    class R:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"ok": True}
+
+    class H:
+        def get(self, url, timeout=None, headers=None, **kw):
+            if headers:
+                seen_header["auth"] = headers.get("Authorization", "")
+            return R()
+
+    lv = live.Live.__new__(live.Live)
+    lv.a = {"key": key, "secret": secret}
+    lv.work = f"https://example.test{work_path}"
+    lv.http = H()
+
+    with unittest.mock.patch("greenops.live.time.time", return_value=fixed_time):
+        result = lv.status()
+
+    assert result == {"ok": True}
+    assert "auth" in seen_header
+
+    expected_sig = base64.b64encode(
+        hmac_mod.new(secret.encode(), "\n".join(["GET " + work_path, "", "", "", str(expires)]).encode(),
+                     hashlib.sha256).digest()
+    ).decode()
+    expected = f"EXO2-HMAC-SHA256 credential={key},expires={expires},signature={expected_sig}"
+    assert seen_header["auth"] == expected
