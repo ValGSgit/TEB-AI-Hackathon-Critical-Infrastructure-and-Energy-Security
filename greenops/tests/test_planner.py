@@ -154,3 +154,11 @@ def test_a_long_platform_stall_does_not_strand_a_nearly_done_job(spec):
 
     assert stalled() == 15
     assert stalled(finish_h=0, flat_slack_h=0) < 15, "the stall must still strand a job without the rules"
+
+
+def test_a_slow_platform_makes_created_jobs_pause_less(spec):
+    """The pause threshold grows with the longest gap between status replies (gap_factor x gap_h)."""
+    p = Planner(spec, lambda a, n: [100.0] * 24)
+    assert p._flat_slack() == p.flat_slack_h
+    p.gap_h = 9.0
+    assert p._flat_slack() == max(p.flat_slack_h, p.gap_factor * 9.0) > p.flat_slack_h

@@ -13,7 +13,8 @@
   deletes came hours late. Mitigated by ADR-0014; `live.py` prints `slow_poll_s` (status / plan / act split) for any
   poll over 2 s. Run 4 showed the platform's work-status reply itself taking 10–20 s at times, so the status
   read timeout is 30 s (`STATUS_TIMEOUT_S`) and a failed poll is retried after 0.5 s. In run 5 one reply took 65 s:
-  whatever is stopped then stays stopped, so nearly finished jobs no longer pause (ADR-0015).
+  whatever is stopped then stays stopped, so nearly finished jobs no longer pause (ADR-0015). In run 6 status took
+  20 s at the median and forecast requests timed out; see ADR-0016 (stale-forecast fallback, safe mode).
 - **Quiet blocked jobs.** The decision log records only state changes, so a job that stays "blocked" logs once.
   Read the absence of later lines as "still blocked".
 - **Status sampling.** `status.jsonl` is sampled once per simulated hour, so a job delivered after the last sample

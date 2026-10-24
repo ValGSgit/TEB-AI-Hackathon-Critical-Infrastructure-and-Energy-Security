@@ -56,6 +56,8 @@ class Planner:
     forecast: callable                 # (area, now_h) -> hourly g/kWh from floor(now_h), 6 or 24 values
     stretch: tuple = (1.0, 1.25, 1.5, 2.0)   # block lengths tried, as multiples of the run time
     margin_h: float = 2.0              # finish this long before the deadline
+    gap_factor: float = 3.0            # ... or at most this many times the longest gap between status replies seen
+    gap_h: float = 0.0                 # longest gap between two status replies so far, in simulated hours
     flat_slack_h: float = 12.0         # a created job with at most this much spare time left stops pausing
                                        # (offline sweep: fewer misses after long platform stalls, -9 points normally)
     finish_h: float = 12.0             # a created job with at most this many run hours left runs them without pauses
@@ -204,6 +206,10 @@ class Planner:
         """Not delivered and not created yet (only those can be left without a slot)."""
         return not r["final_output_delivered"] and not r["assignments"] and wid not in self.placements
 
+    def _flat_slack(self) -> float:
+        """Spare time below which a created job stops pausing: a slow platform may not let us restart it in time."""
+        return max(self.flat_slack_h, self.gap_factor * self.gap_h)
+
     def _can_finish(self, wid, r, now: float) -> bool:
         """Could the job still be delivered in time at its fastest? Only then is running others flat out worth it."""
         w = self.W[wid]
@@ -256,7 +262,7 @@ class Planner:
                     b = self._best_block(w, pl, need, h0, lo, max(end, lo + math.ceil(need) - 1) if created else end,
                                          est, cap, fixed_start=created or commit,
                                          stretch=(1.0,) if created and (flat or need <= self.finish_h
-                                                                        or (last - lo + 1) - need <= self.flat_slack_h) else None)
+                                                                        or (last - lo + 1) - need <= self._flat_slack()) else None)
                     if b and (best is None or b[0] < best[0][0] or (not self.shift and b[1] < best[0][1])):
                         best = (b, pl)
                 if best:
@@ -313,6 +319,8 @@ class Planner:
                     for a in r["assignments"]:
                         if a["state"] == "running":
                             self.vm_run_h[a["vm_id"]] = self.vm_run_h.get(a["vm_id"], 0.0) + dt
+        if self._last_h is not None and self.placements:      # the clock runs: how long were we blind?
+            self.gap_h = max(self.gap_h, now - self._last_h)
         self._last_h = now
         hour = int(now)
         if hour != self._plan_hour:
