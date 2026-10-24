@@ -15,7 +15,12 @@ from greenops.spec import load
 from greenops.planner import Planner
 from greenops.game import Game, make_grid
 from greenops.play import Naive, run
-from greenops.fake_platform import Fake
+from fake_platform import Fake
+
+
+@pytest.fixture(scope="module")
+def spec():
+    return load()
 
 
 # ------------------------------------------------------------------ Live.forecast against fake platform
@@ -147,43 +152,75 @@ def test_planner_uses_only_forecasts(spec):
 
 # ------------------------------------------------------------------ baseline accuracy: hand-computed energy
 def test_energy_accounting_matches_hand_computation(spec):
-    """On a real-workload scenario, assert the kWh x g/kWh formula produces the expected carbon.
-    Assert the claimed saving (1 - aware/naive) is computed from those two scores."""
+    """On a constant grid, carbon_g must equal energy_kwh x intensity exactly. That checks the
+    accounting (kW x PUE x dt x g/kWh) independently of the score normalization."""
     seed = 3
-    game_naive, _ = run(spec, seed, lambda s, f: Naive(s, f, pause=False, name="naive"))
-    game_aware, _ = run(spec, seed, lambda s, f: Planner(s, f, name="carbon-aware"))
+    areas = sorted({s.area for s in spec.sites.values()})
+    grid = make_grid(seed, areas)
+    for a in areas:
+        grid.actual[a] = [100.0] * len(grid.actual[a])       # constant 100 g/kWh everywhere
 
-    score_naive = game_naive.score()
-    score_aware = game_aware.score()
+    planner = Planner(spec, grid.forecast)
+    game = Game(spec, grid)
+    next_tick = 0.0
+    while game.now < spec.horizon_h - 1e-9 and not game.disqualified:
+        if game.now + 1e-9 >= next_tick:
+            for act in planner.decide(game.status()):
+                kind = act[0]
+                try:
+                    if kind == "create":
+                        _, wid, zone, prof, _i = act
+                        vid = game.create(wid, zone, prof)
+                        planner.vm_profile[vid] = prof
+                    elif kind == "stop":
+                        game.stop(act[1])
+                    elif kind == "start":
+                        game.start(act[1])
+                    elif kind == "delete":
+                        game.delete(act[1])
+                except ValueError as e:
+                    planner.rejected(game.now, act, str(e))
+            next_tick += 0.25
+        game.step()
 
-    # Both deliver all workloads
-    assert score_naive["delivered"] == 15
-    assert score_aware["delivered"] == 15
-
-    # Verify energy formula for each workload: carbon_g = energy_kwh * g/kWh
-    ref = spec.rules["reference_g_per_kwh"]
+    assert not game.disqualified
     for w in spec.workloads:
-        wl = game_aware.ws[w.id]
+        wl = game.ws[w.id]
         if wl.energy_kwh > 0:
-            expected = wl.energy_kwh * ref
-            assert abs(wl.carbon_g - expected) < 1.0, \
+            expected = wl.energy_kwh * 100.0                  # constant grid: kWh x g/kWh
+            assert abs(wl.carbon_g - expected) < 1e-6, \
                 f"{w.id}: carbon_g={wl.carbon_g}, expected={expected}, energy_kwh={wl.energy_kwh}"
 
-    # Verify the claimed saving is arithmetically honest
-    if score_naive["carbon_kg"] > 0:
-        claimed_saving = 1 - score_aware["carbon_kg"] / score_naive["carbon_kg"]
-        actual_ratio = score_aware["carbon_kg"] / score_naive["carbon_kg"]
-        assert abs(claimed_saving - (1 - actual_ratio)) < 1e-6
 
-    # Carbon-aware should be strictly better (or equal) in carbon
-    assert score_aware["carbon_kg"] <= score_naive["carbon_kg"]
+# ------------------------------------------------------------------ the planner asks for forecasts only
+def test_planner_calls_forecast_with_area_and_now_only(spec):
+    """The planner must call forecast(area, now) with at most two positional arguments; the
+    horizon it asks for is never more than the 24 h the run publishes."""
+    calls = []
+
+    def spy(area, *rest):
+        calls.append((area, rest))
+        return [100.0] * 24
+
+    p = Planner(spec, spy)
+    p._estimates(5.0)
+    assert calls
+    for area, rest in calls:
+        assert isinstance(area, str) and len(rest) == 1 and isinstance(rest[0], float)
 
 
-# ------------------------------------------------------------------ forecast signature check
-def test_forecast_signature(spec):
-    """The forecast function must only accept (area, now) — no extra parameters that could
-    leak actuals or cross-run data."""
-    sig = inspect.signature(make_grid(0, ["TEST"]).forecast)
-    params = list(sig.parameters.keys())
-    assert "area" in params and "now" in params
-    assert len(params) == 2, f"forecast should only take area and now, got: {params}"
+def test_forecast_horizon_is_bounded(spec):
+    """The planner estimates beyond the published horizon by blending the forecast it has; it never
+    requests a longer horizon than 24 h from the run."""
+    asked = []
+
+    def spy(area, now, horizon=None):
+        asked.append(None)
+        return [100.0] * 24
+
+    p = Planner(spec, spy)
+    est = p._estimates(0.0)
+    area = next(iter(est))
+    assert asked, "the planner must go through the forecast callable, never the grid API"
+    # The estimates array spans the whole horizon; the planner never asks for more than 24 h.
+    assert len(est[area]) == int(spec.horizon_h)

@@ -161,7 +161,7 @@ def test_adversarial_check_placement_raises(spec, monkeypatch):
     assert len(create_acts) >= 1, "bootstrap should emit at least one create"
 
     _, wid, legal_zone, prof, _i = create_acts[0]
-    w = spec.W[wid]
+    w = next(x for x in spec.workloads if x.id == wid)
     illegal_zone = next(z for z in spec.zones if z.country not in w.allowed_countries)
     with pytest.raises(ResidencyViolation):
         check_placement(w, illegal_zone)
