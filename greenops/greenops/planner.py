@@ -63,7 +63,8 @@ class Planner:
     shift: bool = True                 # False = start as early as quota allows (ablation)
     commit_h: int = 2                  # a planned start this close is kept, not re-optimized away (-1 = off)
     slack_h: int = 4                   # plan to end this many hours before `margin_h`, when it fits (0 = off)
-    flex_workers: int = 1              # spare time is judged on this many workers (0 = the job's max_workers)
+    flex_workers: int = 0              # spare time is judged on this many workers (0 = the job's max_workers;
+                                       # 1 moved every parallel job early in run 4 and cost ~11% more electricity)
     commit_first: bool = True          # kept starts get quota before flexible jobs
     name: str = "carbon-aware"
     placements: dict = field(default_factory=dict)    # workload id -> Placement (once created)
@@ -76,6 +77,8 @@ class Planner:
     _state: dict = field(default_factory=dict)        # workload id -> last logged state
     rescue: bool = True                # a job left without a slot is planned first, created jobs flat out if needed
     urgent: set = field(default_factory=set)          # jobs that once found no slot: planned right after created ones
+    urgent_late: bool = True           # ... and jobs whose only slot runs past their soft end
+    _late: set = field(default_factory=set)           # (per pass) jobs planned past their soft end
 
     def __post_init__(self):
         self.W = {w.id: w for w in self.spec.workloads}
@@ -183,6 +186,8 @@ class Planner:
         plan = self._plan_pass(rows, now, est, flat=False)
         if self.rescue:
             starved = {wid for wid, r in rows.items() if self._open(wid, r) and wid not in plan}
+            if self.urgent_late:           # a slot only past the soft end is the first sign of crowding (w-05, runs 1-3)
+                starved |= {wid for wid in self._late if self._open(wid, rows[wid])}
             if starved - self.urgent:
                 self.urgent |= starved
                 plan = self._plan_pass(rows, now, est, flat=False)
@@ -202,6 +207,7 @@ class Planner:
         return start + self._run_hours(w, r, self._fastest(w), False) <= w.deadline_h
 
     def _plan_pass(self, rows: dict, now: float, est: dict, flat: bool) -> dict:
+        self._late = set()
         h0 = int(now)
         q = self.spec.quotas
         cap = {"v": np.full(self.H + 1, q.max_vcpus, dtype=float), "n": np.full(self.H + 1, q.max_vms, dtype=float)}
@@ -249,6 +255,8 @@ class Planner:
                     if b and (best is None or b[0] < best[0][0] or (not self.shift and b[1] < best[0][1])):
                         best = (b, pl)
                 if best:
+                    if end == last and soft < last and not created:
+                        self._late.add(wid)
                     break
             if best is None and commit:       # the committed slot no longer fits: plan it afresh
                 commit = False

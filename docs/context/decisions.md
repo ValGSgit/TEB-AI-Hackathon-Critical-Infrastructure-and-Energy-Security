@@ -35,7 +35,10 @@
   window and larger buffers were tried and rejected (uneven or "blocked").
 - **ADR-0013**: No job may starve. A job the planner leaves without a slot is marked urgent and planned right after
   created jobs until it is created; if it still has no slot, created jobs are planned flat out (no pauses), which hands
-  back the quota their pauses would hold late in the run. Spare time is judged on 1 worker, not `max_workers`.
+  back the quota their pauses would hold late in the run. A job whose only slot ends past its soft end is marked
+  urgent too (the first sign of crowding). Spare time is judged on `max_workers` again: judging it on 1 worker (run 4)
+  planned every parallel job first and early, squeezed the others onto slower machines without pauses, and gave a
+  lower dashboard score than run 2 despite 15/15.
   Reason: run 3 left `w-05` (up to 10 workers, so it looked flexible) without a slot from hour 79 and lost the
   completion bonus. Offline with 240 vCPUs: 13.0 → 15.0 of 15 delivered; with the real 320, plans are unchanged.
 - **ADR-0014**: The live loop spends as little wall time as possible: at 720× one wall second is 0.2 simulated hours.
