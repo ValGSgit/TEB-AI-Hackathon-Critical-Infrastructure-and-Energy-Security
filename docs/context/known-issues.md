@@ -37,4 +37,5 @@
 - **Shallow clones.** A `git clone --depth 1` only tracks `main`; add
   `git config --add remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'` to see other branches.
 - **Embedded git repos.** Never copy a folder that contains its own `.git` into the repo: git stores a pointer
-  instead of the files (this happened once with the first `greenops/` upload).
+  instead of the files (this happened with the first `greenops/` upload and again with a Feint clone in
+  `feint/`, which is now git-ignored).

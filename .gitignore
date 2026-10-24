@@ -16,3 +16,6 @@ greenops.env
 
 site/dist/
 _site/
+
+# Local clone of the Feint API emulator (github.com/stephrobert/feint), for reference only; never vendored
+feint/

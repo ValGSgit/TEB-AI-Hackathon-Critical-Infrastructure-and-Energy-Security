@@ -178,7 +178,7 @@ run takes 28 s of wall time with parallel forecast fetching, against 160 s witho
 
 ### Tests
 
-99 tests (`python -m pytest -q`, about 2 min), run in CI on every push:
+102 tests (`python -m pytest -q`, about 2 min), run in CI on every push:
 
 | Area | What is tested |
 | --- | --- |
@@ -223,9 +223,12 @@ flowchart TB
 ```
 .
 ├── README.md                     ← you are here
+├── SUBMISSION.md                 form fields and paste-ready build/run instructions for the judges
 ├── AGENTS.md / CLAUDE.md         rules for every coding assistant in this repo
 ├── docs/
 │   ├── context/                  architecture, decisions (ADRs), glossary, workflow, known issues
+│   ├── reviews/                  dated code reviews
+│   ├── greenops-challenge-brief.txt   the organizers' challenge text
 │   └── challenge-choice-and-prebuild.md
 ├── greenops/                     ★ the submission
 │   ├── Dockerfile                judged image: python -m greenops.live
@@ -241,7 +244,7 @@ flowchart TB
 │   │   ├── model.py              Zone, Profile, Workload, Quotas
 │   │   └── policy.py, sim.py, scenario.py, catalog.py, export.py, experiments.py
 │   │                             pre-event synthetic path; still feeds the Control Room samples
-│   ├── tests/                    99 tests, incl. fake_platform.py
+│   ├── tests/                    102 tests, incl. fake_platform.py
 │   ├── ui/                       GreenOps Control Room (decision explainer)
 │   └── globe/                    GreenOps Earth (3D replay on the map)
 ├── site/                         project site for GitHub Pages (template + build from the offline game)
@@ -257,7 +260,7 @@ Python 3.12+ (the image uses 3.13). From `greenops/`:
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                         # 99 tests
+python -m pytest -q                         # 102 tests
 python -m greenops.play --seeds 8           # the benchmark table above
 ```
 
@@ -324,4 +327,4 @@ data and a replay spoofing scenario. Open `forcegeo/showcase/index.html` or
 
 **Team CryptoNight:** Valentino ([@ValGSgit](https://github.com/ValGSgit)), Oliver ([@PaxeDev](https://github.com/PaxeDev)).
 Built on the organizers' [GreenOps starter kit](https://github.com/exogmi/greenops-challenge-starter-kit)
-(public spec, API conventions). The simulator's API emulation is powered by Feint.
+(public spec, API conventions). The simulator's API emulation is powered by [Feint](https://github.com/stephrobert/feint).

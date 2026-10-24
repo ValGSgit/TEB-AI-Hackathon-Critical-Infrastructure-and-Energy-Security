@@ -6,7 +6,7 @@ GreenOps scheduler (from `greenops/`):
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q        # about 99 tests, about 2–5 min
+python -m pytest -q        # about 102 tests, about 2–5 min
 python -m greenops.play --seeds 8                           # real-challenge planner on the offline game
 python compare.py 20                                        # earlier synthetic path
 python -m greenops.experiments --seeds 12
@@ -46,7 +46,8 @@ Pages → Source: GitHub Actions. Edit `site/template.html`, never the built pag
 
 ## CI (`.github/workflows/tests.yml`)
 
-- `greenops`: `pip install -r requirements-dev.txt`, `pytest -q`, `compare.py 5`, `greenops.play --seeds 2`.
+- `greenops` (Python 3.12 and 3.13): `pip install -r requirements-dev.txt`, `pytest -q`, `compare.py 5`, `greenops.play --seeds 2`.
+- `image`: `docker build` of `greenops/Dockerfile`, then `--help` under the judges' limits (read-only root, 2 CPUs, 1 GiB).
 - `galileo-live`: `python forcegeo/galileo-live/build.py`.
 - `greenops-ui`: legacy experiments + export (smoke test), `export_game` + `ui/build.py` + `globe/build.py`.
 

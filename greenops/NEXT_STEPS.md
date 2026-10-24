@@ -41,6 +41,8 @@
   under 0.75 simulated hours and the stall rules never switched on: both runs planned like run 2 throughout.
   The margin is thin: at 720× a 1 s sleep plus a poll of about 2.75 s crosses it, and the rules then stay on
   for the rest of the run. Run 10's tightest job (w-14) finished 2.03 h before its deadline, i.e. at `margin_h`.
+- **Score candidates** for after run 11, with an offline knob screen: "Score candidates after run 11" below.
+  None is a sure gain yet; a practice run is worth spending only on one that wins offline first.
 - **Submission:** fields and paste-ready build/run instructions in `SUBMISSION.md`. The SHA and the claimed run
   are recorded in `.local/SESSION_HANDOFF.md`.
 - **Pitch:** private deck "GreenOps jury pitch" (Claude artifact, 11 slides) built with the personal
@@ -49,6 +51,34 @@
 - **Analyse a run:** `python -m greenops.analyze .local/runN`, then compare with the dashboard. Launch
   commands: "How to run" below, with the Docker variant and `--probe` first. Credentials: check that the
   `.env` endpoints and `greenops-exo.json` name the same run ID (`live.py` refuses a mismatched work endpoint).
+
+## Score candidates after run 11 (review of 24 Oct, offline only)
+
+Rule for any of these: it ships only if it wins on synthetic seeds (`python -m greenops.play --seeds 8` and the
+adverse sweep), never tuned on the practice scenario. On a fast platform the bonus is already safe, so carbon is
+the only lever left: about 25 points per 1% less carbon.
+
+Knob screen, 8 seeds, `adaptive`, 0.25 h ticks (mean change in score, per-seed range):
+
+| Variant | Mean | Range | Verdict |
+| --- | --- | --- | --- |
+| `beyond_blend` 0.5 → 0.8 | +7 | −34 … +29 | noise; would need 32 seeds and the sweep |
+| `stretch` up to 3× | +1 | −12 … +17 | no gain |
+| `beyond_premium` 0.1 → 0 | +0.5 | −49 … +50 | no gain, more variance |
+| `beyond_premium` 0.1 → 0.2 | −34 | −105 … +5 | worse |
+| `zones_per_profile` 2 → 3 | 0 | 0 | no change (as before) |
+
+Larger ideas, not yet measured:
+
+1. **This run's own observations** (`carbon-intensity/history`, if the grid API serves it): learn each area's
+   daily shape and its forecast bias, to estimate beyond 24 h and to correct the forecast. The challenge text
+   allows "electricity observations and forecasts published for that run", but AGENTS.md rule 2 says forecasts
+   only: changing it needs a team decision and an ADR first.
+2. **Stop extra workers once only output remains**: offline they idle at 20% power for 0.25–1 h. Small (well
+   under 1 kWh in total), and the spec does not say which worker ships the output. Low priority.
+3. **`gap_h` as a running maximum**: one slow poll switches the stall rules on for the rest of the run. A
+   decaying gap (for example the longest gap of the last 6 simulated hours) would plan like run 2 again once the
+   platform recovers. Risk: a second stall right after the first. Needs the adverse sweep.
 
 ## Status (day 1)
 
