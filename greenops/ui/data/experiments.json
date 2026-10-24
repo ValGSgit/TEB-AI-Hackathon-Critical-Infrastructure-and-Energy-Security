@@ -41,9 +41,9 @@
    "key": "carbon-aware",
    "label": "+ stop through dirty hours",
    "change": "The full planner: a block of hours per job, run in its cleanest hours, stopped in the others.",
-   "score_mean": 21958,
-   "carbon_mean": 13.65,
-   "carbon_sd": 0.41,
+   "score_mean": 21945,
+   "carbon_mean": 13.73,
+   "carbon_sd": 0.44,
    "energy_mean": 108.1,
    "all_done": 8,
    "disqualified": 0

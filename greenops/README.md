@@ -93,9 +93,9 @@ fetches; the budget is 5 s. (Measured once, 23 Oct, commit `b695511`, before the
 | naive (first legal zone, fastest profile, start at release) | 24.63 ± 0.77 kg | 124.4 kWh | 20,323 | 15/15 |
 | + cleanest zone and efficient hardware | 14.12 ± 0.43 kg | 106.7 kWh | 21,886 | 15/15 |
 | + time shift | 14.07 ± 0.43 kg | 107.3 kWh | 21,894 | 15/15 |
-| carbon-aware (blocks with stop/resume) | 13.65 ± 0.41 kg | 108.1 kWh | 21,958 | 15/15 |
+| carbon-aware (blocks with stop/resume) | 13.73 ± 0.44 kg | 108.1 kWh | 21,945 | 15/15 |
 
-That is −45% against naive, mostly from *where* and *which hardware*. These are synthetic grids. `game.score()`
+That is −44% against naive, mostly from *where* and *which hardware*. These are synthetic grids. `game.score()`
 uses the greenops-score-v2 formula (see the root README), which we confirmed against the platform's
 per-workload breakdown.
 

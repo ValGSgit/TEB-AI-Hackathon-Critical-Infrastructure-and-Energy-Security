@@ -56,6 +56,8 @@ class Planner:
     forecast: callable                 # (area, now_h) -> hourly g/kWh from floor(now_h), 6 or 24 values
     stretch: tuple = (1.0, 1.25, 1.5, 2.0)   # block lengths tried, as multiples of the run time
     margin_h: float = 2.0              # finish this long before the deadline
+    flat_slack_h: float = 12.0         # a created job with at most this much spare time left stops pausing
+                                       # (offline sweep: fewer misses after long platform stalls, -9 points normally)
     finish_h: float = 12.0             # a created job with at most this many run hours left runs them without pauses
                                        # (run 5: a 65 s status reply left a paused, nearly done job stopped past its deadline)
     beyond_blend: float = 0.5          # beyond the forecast: blend of same-hour value and forecast mean
@@ -253,7 +255,8 @@ class Planner:
                         continue                  # the soft end does not fit this placement
                     b = self._best_block(w, pl, need, h0, lo, max(end, lo + math.ceil(need) - 1) if created else end,
                                          est, cap, fixed_start=created or commit,
-                                         stretch=(1.0,) if created and (flat or need <= self.finish_h) else None)
+                                         stretch=(1.0,) if created and (flat or need <= self.finish_h
+                                                                        or (last - lo + 1) - need <= self.flat_slack_h) else None)
                     if b and (best is None or b[0] < best[0][0] or (not self.shift and b[1] < best[0][1])):
                         best = (b, pl)
                 if best:

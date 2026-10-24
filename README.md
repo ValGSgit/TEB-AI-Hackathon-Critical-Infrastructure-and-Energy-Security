@@ -5,7 +5,7 @@ TEB AI Hackathon: Critical Infrastructure & Energy Security · weXelerate, Vienn
 
 [![tests](https://github.com/ValGSgit/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security/actions/workflows/tests.yml/badge.svg)](https://github.com/ValGSgit/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security/actions/workflows/tests.yml)
 
-> Same work, same deadlines, same legal countries: **45% less carbon** than a naive scheduler
+> Same work, same deadlines, same legal countries: **44% less carbon** than a naive scheduler
 > (offline benchmark, 8 synthetic grids, 15/15 delivered on time in every run).
 > Two practice runs on the live platform: 15/15 on time, qualified, every VM cleaned up, no refused actions.
 
@@ -131,12 +131,13 @@ Electricity is **synthetic**: 8 random grids built from generic country profiles
 | Naive: first legal zone, fastest profile, start at release | 24.63 ± 0.77 kg | – | 124.4 kWh | 15.13 kg | 20,323 | 15/15 |
 | + **where** and **which hardware** | 14.12 ± 0.43 kg | **−43%** | 106.7 kWh | 8.47 kg | 21,886 | 15/15 |
 | + **when** to start | 14.07 ± 0.43 kg | −43% | 107.3 kWh | 8.43 kg | 21,894 | 15/15 |
-| + **stop through dirty hours** (full planner) | **13.65 ± 0.41 kg** | **−45%** | 108.1 kWh | 8.10 kg | **21,958** | **15/15** |
+| + **stop through dirty hours** (full planner) | **13.73 ± 0.44 kg** | **−44%** | 108.1 kWh | 8.16 kg | **21,945** | **15/15** |
 
-- Average grid intensity of the electricity used drops from 198 to 126 g/kWh, and energy drops 13%.
+- Average grid intensity of the electricity used drops from 198 to 127 g/kWh, and energy drops 13%.
 - Every policy delivers 15/15 on time on all 8 grids, with no lost work and no residency violation.
 - Placement and hardware choice are the biggest lever; pausing adds a further 3% on top. The full planner
-  gives up about 0.25% of offline score for safety (it never pauses a job that is nearly done, ADR-0015). On the real
+  gives up about 0.3% of offline score for safety (it never pauses a job that is nearly done or nearly
+  out of spare time, ADR-0015). On the real
   platform's grids the timing levers are worth more than on our synthetic ones (see `greenops/NEXT_STEPS.md`).
 
 ### Live platform (practice runs)

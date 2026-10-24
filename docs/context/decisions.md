@@ -49,7 +49,10 @@
   without pauses. Reason: run 5's platform answered one status request after 65 s (~13 simulated hours at 720×),
   and a paused, nearly finished job resumed after its deadline. Offline with a 15 h stall late in the run:
   1/12 → 12/12 grids fully on time, for −0.25% score on a normal platform. Rejected: widening every deadline
-  margin by the observed poll gap (it crowded quota and did worse in stalls).
+  margin by the observed poll gap (it crowded quota and did worse in stalls). Extended: a created job with at most
+  `flat_slack_h` = 12 h of spare time also stops pausing (adverse-condition sweep of 192 runs: fewer misses after
+  long stalls and refused actions, about −9 points on a normal platform). Not adopted: marking a job urgent after a
+  refused create (no measurable effect).
 - **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
   English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
   commit as the change they describe. External skills are optional: nothing in the repo depends on them.
