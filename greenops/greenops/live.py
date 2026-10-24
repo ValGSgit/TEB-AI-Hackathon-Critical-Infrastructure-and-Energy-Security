@@ -31,7 +31,7 @@ import requests
 from exoscale.api.v2 import Client
 
 from .guard import ResidencyViolation, check_placement
-from .planner import Planner
+from .planner import Planner, make_planner
 from .spec import load, to_h
 
 TERMINAL = {"COMPLETED", "INVALIDATED", "UNAVAILABLE"}
@@ -387,7 +387,7 @@ def probe(live: Live, spec, out: Path) -> dict:
 def dry_plan(spec, forecast, st: dict) -> dict:
     """The plan the planner would make now, from this run's forecasts, with every zone residency-checked.
     No cloud call is made: nothing is created."""
-    pl = Planner(spec, forecast)
+    pl = make_planner(spec, forecast, os.environ.get("GREENOPS_PLANNER", "default"))
     first = pl.bootstrap(st)
     zones = {z.id: z for z in spec.zones}
     rows, illegal = [], []
@@ -434,7 +434,9 @@ def main():
     if a.probe:
         print(json.dumps(probe(live, spec, out), indent=1))
         return
-    planner = Planner(spec, live.forecast)
+    profile = os.environ.get("GREENOPS_PLANNER", "default")
+    planner = make_planner(spec, live.forecast, profile)
+    print(json.dumps({"planner_profile": profile}))
     planner.vm_profile.update({k: v for k, v in live.existing().items() if v in planner.P})
     log = open(out / "decisions.jsonl", "a", encoding="utf-8")
     samples = open(out / "status.jsonl", "a", encoding="utf-8")
