@@ -30,6 +30,8 @@
 - **To try run 2's planning safely** (ADR-0017): add `-e GREENOPS_PLANNER=run2plus` to the `docker run`. Same image;
   the console's first line shows `planner_profile`. Offline it gains about 0.3% on a fast platform and is fragile
   on a slow one.
+- **Run 9** (720×): `-e GREENOPS_PLANNER=adaptive`, i.e. run 2's planning on a fast platform, with the protections
+  switching on when the platform turns slow (ADR-0017). Compare it with run 2 on the dashboard.
 - **Decision for Sunday:** which commit to submit. Recommended: `main`, because it is robust to slow
   platforms and crowding; the 5,000-point bonus outweighs a ~0.6% carbon edge. The fallback is `run2-code`.
 - **Pitch:** private deck "GreenOps jury pitch" (Claude artifact, 11 slides) built with the personal
@@ -46,7 +48,7 @@
   platform refused no actions. It is **first on the preliminary leaderboard**. The carbon and score figures are on
   the run dashboard only; real-run values stay out of git (rule 2).
 - Everything is on `main`: PRs #6–#11 (#9: the controller never exits mid-run; #11: Oliver's residency/forecast
-  tests and UI). Tests: `python -m pytest -q` from `greenops/` (97 tests, about 2–5 min).
+  tests and UI). Tests: `python -m pytest -q` from `greenops/` (98 tests, about 2–5 min).
 - PR #5 (Oliver, `AGENTS.md` + `docs/context/`) is merged, with `docs/context/` updated for the real-challenge path
   (ADR-0007 to ADR-0010). Keep those docs current in the same commit as each change.
 
