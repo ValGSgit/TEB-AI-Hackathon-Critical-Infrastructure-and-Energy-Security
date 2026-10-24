@@ -162,7 +162,7 @@ Electricity is **synthetic**: 8 random grids built from generic country profiles
 | 6 | 14/15 | Forecast timeouts stopped planning → stale-forecast fallback, safe mode, parallel actions |
 | 7, 8 | 15/15 | All safety rules on: reproducible within 8 points, ~0.6% below run 2 |
 | 9 | 15/15 | `adaptive` profile: within 0.05% of run 2, with every safety net on |
-| 10 | [pending] | `adaptive` again |
+| 10 | 15/15 | `adaptive` again: same behaviour as run 9 (tightest job 2.0 h early, every VM deleted within 0.3 h) |
 
 All runs stayed qualified, with no residency attempt. Speeds are 720× in our Docker image unless noted.
 Real-run carbon and scores stay on the platform dashboard, not in git, because the rules forbid committing
