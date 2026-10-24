@@ -44,7 +44,9 @@
 - **ADR-0014**: The live loop spends as little wall time as possible: at 720× one wall second is 0.2 simulated hours.
   Delivered VMs are deleted first in every poll. Forecasts are fetched once per re-plan, cached per area and hour,
   and the 8 areas are fetched in parallel (thread-safe rate limiter). Reason: run 3 went up to ~23 wall seconds
-  without a poll, and VMs idled for hours after delivery.
+  without a poll, and VMs idled for hours after delivery. After run 6 (actions up to 17.6 s each): stop / start /
+  delete actions of a poll go out in parallel; status read timeout 60 s, forecast read timeout 10 s (with the
+  stale-forecast fallback of ADR-0016).
 - **ADR-0015**: Finish what is nearly done. A created job with at most `finish_h` = 12 run hours left runs them
   without pauses. Reason: run 5's platform answered one status request after 65 s (~13 simulated hours at 720×),
   and a paused, nearly finished job resumed after its deadline. Offline with a 15 h stall late in the run:

@@ -182,3 +182,25 @@ def test_safe_mode_starts_stopped_work_when_planning_fails():
         {"id": "w-03-med-analysis", "final_output_delivered": True,
          "assignments": [{"vm_id": "c", "zone": "es-mad-1", "state": "stopped"}]}]}
     assert live.safe_actions(p, st) == [("start", "a", "w-11-dach-simulation")]
+
+
+def test_actions_go_out_in_parallel_and_refusals_reach_the_planner():
+    """Run 6: one action took 17.6 s and they were sent one by one. Six slow actions now take about one."""
+    import time as _t
+    from greenops import live
+    from greenops.planner import Planner
+    from greenops.spec import load
+
+    class Slow:
+        def act(self, kind, vm, zone):
+            _t.sleep(0.3)
+            if vm == "bad":
+                raise RuntimeError("409 conflict")
+
+    p = Planner(load(), lambda a, n: [100.0] * 24)
+    acts = [("stop", f"vm{i}", "w-01-dach-research") for i in range(5)] + [("start", "bad", "w-02-ch-reporting")]
+    t0 = _t.monotonic()
+    live.act_parallel(Slow(), p, 50.0, acts, {})
+    assert _t.monotonic() - t0 < 1.0
+    assert [d for d in p.decisions if d["action"] == "rejected"] == [
+        {"t": 50.0, "workload": "w-02-ch-reporting", "action": "rejected", "reason": "start refused: 409 conflict"}]
