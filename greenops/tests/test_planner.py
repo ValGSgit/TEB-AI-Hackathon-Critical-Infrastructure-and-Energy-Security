@@ -162,3 +162,28 @@ def test_a_slow_platform_makes_created_jobs_pause_less(spec):
     assert p._flat_slack() == p.flat_slack_h
     p.gap_h = 9.0
     assert p._flat_slack() == max(p.flat_slack_h, p.gap_factor * 9.0) > p.flat_slack_h
+
+
+def test_planner_profiles(spec):
+    """GREENOPS_PLANNER picks a named configuration; the default is the judged one, unknown names fail fast."""
+    from greenops.planner import PROFILES, make_planner
+    d, r2 = make_planner(spec, lambda a, n: [100.0] * 24), make_planner(spec, lambda a, n: [100.0] * 24, "run2plus")
+    assert (d.slack_h, d.finish_h, d.rescue) == (Planner.slack_h, Planner.finish_h, True)
+    assert (r2.slack_h, r2.commit_h, r2.finish_h, r2.flat_slack_h, r2.gap_factor) == (0, -1, 0, 0, 0)
+    assert r2.rescue and r2.urgent_late, "run2plus keeps the zero-cost protections"
+    with pytest.raises(ValueError):
+        make_planner(spec, lambda a, n: [100.0] * 24, "nope")
+    assert set(PROFILES) == {"default", "run2plus", "adaptive"}
+
+
+def test_adaptive_profile_protects_only_once_the_platform_is_slow(spec):
+    """adaptive plans like run 2 while status replies come quickly and switches the stall protections on by
+    itself after a gap longer than protect_gap_h (dynamic, not tuned to one scenario)."""
+    from greenops.planner import make_planner
+    p = make_planner(spec, lambda a, n: [100.0] * 24, "adaptive")
+    assert (p.slack_h, p.commit_h) == (0, -1) and p.rescue and p.urgent_late
+    p.gap_h = 0.25
+    assert not p._protect()
+    p.gap_h = 3.0
+    assert p._protect() and p._flat_slack() >= p.gap_factor * 3.0
+    assert make_planner(spec, lambda a, n: [100.0] * 24)._protect(), "the default profile always protects"
