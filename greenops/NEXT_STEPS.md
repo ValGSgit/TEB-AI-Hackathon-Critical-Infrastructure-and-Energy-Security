@@ -48,7 +48,7 @@
   platform refused no actions. It is **first on the preliminary leaderboard**. The carbon and score figures are on
   the run dashboard only; real-run values stay out of git (rule 2).
 - Everything is on `main`: PRs #6–#11 (#9: the controller never exits mid-run; #11: Oliver's residency/forecast
-  tests and UI). Tests: `python -m pytest -q` from `greenops/` (98 tests, about 2–5 min).
+  tests and UI). Tests: `python -m pytest -q` from `greenops/` (99 tests, about 2–5 min).
 - PR #5 (Oliver, `AGENTS.md` + `docs/context/`) is merged, with `docs/context/` updated for the real-challenge path
   (ADR-0007 to ADR-0010). Keep those docs current in the same commit as each change.
 

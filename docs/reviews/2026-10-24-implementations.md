@@ -328,3 +328,26 @@ Both A and B share the same `Dockerfile`: `python:3.13-slim`, non-root user (`gr
 - It has 54 fewer tests, leaving the most critical invariants (residency cross-product, stall recovery) untested.
 
 The only case where A might be preferred is if the judges specifically want the "simplest working scheduler" as a baseline comparison. But the judging criterion is score (carbon), and B's fixes improve score reliability without material carbon penalty (ADR-0015: −0.25% on a normal platform).
+
+---
+
+## Validation (24 Oct 2026, evening, before practice run 10)
+
+Each finding checked against the code at `main` (after #28/#29) and `run2-code` (1e1a770).
+
+| Finding | Verdict | Action |
+| --- | --- | --- |
+| F1–F4, F6–F11 (A lacks the fixes of runs 3–6) | **Confirmed.** | None on A: `run2-code` stays the frozen snapshot of run 2. Its behaviour, with every zero-cost fix, is the `adaptive` profile on main (ADR-0017). |
+| F12–F15 (A has fewer tests and CI checks) | **Confirmed.** | Same as above; A is a reference snapshot, not a submission candidate. |
+| F5 (safe mode can break residency) | **Not a real risk.** `start` restarts an existing VM in its own zone, and every VM was created through `check_placement`, so safe mode cannot place anything. The PR's xfail test compared a zone id (`at-vie-1`) with country codes (`{"CH"}`), so it would fail for a legal zone too. | Added a defensive check anyway (`is_allowed` per VM in `safe_actions`) with a correct test, `test_safe_mode_only_starts_vms_in_legal_zones`. It costs nothing. |
+| F16 (`GREENOPS_PLANNER` not implemented) | **Incorrect.** The review branch was based on `24da484`, before #28/#29. `d01ec2a` has `make_planner`, `PROFILES` and the `default` / `adaptive` / `run2plus` profiles (`planner.py`, `live.py`). | None. |
+| Test count (92 on B) | Outdated: main had 98 at `d01ec2a`. | Counts updated. |
+| Recommendation "submit B" | **Agreed**, with one refinement: practice run 9 used `adaptive` on main and scored within 0.05% of run 2 with every safety net on. | See NEXT_STEPS. |
+
+Tests in this PR: `test_safety_regression.py` and `test_f5_safe_actions_residency.py` were removed.
+- One test disabled the rescue itself, so removing the rescue from the code changes nothing it checks.
+- One simulated no stall, because the "stall" branch ran after `decide()`.
+- One had the zone/country mix-up above.
+
+Main already has the working equivalents: `test_no_job_starves_when_quota_is_tight` and
+`test_a_long_platform_stall_does_not_strand_a_nearly_done_job`, each checked to fail without its protection.
