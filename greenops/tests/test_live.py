@@ -280,3 +280,18 @@ def test_status_signature_is_pinned():
     ).decode()
     expected = f"EXO2-HMAC-SHA256 credential={key},expires={expires},signature={expected_sig}"
     assert seen_header["auth"] == expected
+
+
+def test_safe_mode_only_starts_vms_in_legal_zones():
+    """Defence in depth (review finding F5): safe mode never touches a VM whose zone is not legal for its
+    workload. Zones are mapped to countries through the spec, as guard.is_allowed does."""
+    from greenops import live
+    from greenops.planner import Planner
+    from greenops.spec import load
+    p = Planner(load(), lambda a, n: [100.0] * 24)
+    st = {"now_h": 50.0, "workloads": [
+        {"id": "w-02-ch-reporting", "final_output_delivered": False, "assignments": [
+            {"vm_id": "legal", "zone": "ch-dk-2", "state": "stopped"},
+            {"vm_id": "illegal", "zone": "at-vie-1", "state": "stopped"},
+            {"vm_id": "unknown", "zone": "xx-nowhere-1", "state": "stopped"}]}]}
+    assert live.safe_actions(p, st) == [("start", "legal", "w-02-ch-reporting")]

@@ -42,7 +42,7 @@ Windows checkouts.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                       # 98 tests (on Windows: set PYTHONUTF8=1 for the exoscale package)
+python -m pytest -q                       # 99 tests (on Windows: set PYTHONUTF8=1 for the exoscale package)
 python -m greenops.play --seeds 4         # policy comparison on the offline game
 python -m greenops.live --probe --out .local/probe     # read-only API checks, creates nothing
 python -m greenops.live --out .local/run1              # live run
@@ -144,7 +144,7 @@ never to one scenario.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q          # the full suite (98 tests, both paths)
+python -m pytest -q          # the full suite (99 tests, both paths)
 python compare.py 20         # policy comparison on 20 practice scenarios
 python -m greenops.experiments --seeds 12   # experiment ladder, one change at a time
 ```

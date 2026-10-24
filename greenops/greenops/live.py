@@ -30,7 +30,7 @@ from urllib.parse import urlparse
 import requests
 from exoscale.api.v2 import Client
 
-from .guard import ResidencyViolation, check_placement
+from .guard import ResidencyViolation, check_placement, is_allowed
 from .planner import Planner, make_planner
 from .spec import load, to_h
 
@@ -328,7 +328,11 @@ def safe_actions(planner, st: dict) -> list:
     for r in st["workloads"]:
         if r["final_output_delivered"]:
             continue
-        stopped = [a["vm_id"] for a in r["assignments"] if a["state"] == "stopped"]
+        w = planner.W[r["id"]]
+        # defence in depth: every VM was created through check_placement, so this never drops one; it keeps
+        # safe mode from ever touching a VM whose zone is not legal for its workload
+        stopped = [a["vm_id"] for a in r["assignments"] if a["state"] == "stopped"
+                   and a.get("zone") in planner.Z and is_allowed(w, planner.Z[a["zone"]])]
         acts += [("start", v, r["id"]) for v in stopped]
         if stopped:
             planner._log(st["now_h"], r["id"], "run", "safe mode: planning failed, so unfinished work runs")
