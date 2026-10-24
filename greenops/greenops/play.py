@@ -13,7 +13,7 @@ import statistics
 from .game import Game, make_grid
 from .guard import check_placement, is_allowed
 from .model import suitable, throughput
-from .planner import Planner, Placement
+from .planner import DEFAULT_PROFILE, PROFILES, Planner, Placement
 from .spec import Spec, load
 
 
@@ -37,7 +37,7 @@ def policies(spec: Spec, forecast):
     return [Naive(spec, forecast, pause=False, name="naive"),
             Planner(spec, forecast, pause=False, shift=False, name="+zone"),
             Planner(spec, forecast, pause=False, name="+zone+shift"),
-            Planner(spec, forecast, name="carbon-aware")]
+            Planner(spec, forecast, name="carbon-aware", **PROFILES[DEFAULT_PROFILE])]   # what the image runs
 
 
 def apply(game: Game, planner: Planner, actions) -> None:

@@ -18,7 +18,7 @@ from multiprocessing import Pool
 
 from .game import Game, make_grid
 from .play import Naive, apply, policies
-from .planner import Planner
+from .planner import DEFAULT_PROFILE, PROFILES, Planner
 from .scenario import ZONE_SITES
 from .spec import load
 
@@ -126,7 +126,7 @@ def build(seed: int, start_utc: str = START_UTC) -> dict:
         if z.id in ZONE_SITES:
             rec["real_zone"] = ZONE_SITES[z.id][3]
         zones.append(rec)
-    runs = [trace(spec, grid, Planner(spec, grid.forecast)),
+    runs = [trace(spec, grid, Planner(spec, grid.forecast, **PROFILES[DEFAULT_PROFILE])),   # what the image runs
             trace(spec, grid, Naive(spec, grid.forecast, pause=False, name="naive"))]
     return {
         "schema": 1, "source": f"{SOURCE} (seed {seed})", "seed": seed, "horizon_h": spec.horizon_h,

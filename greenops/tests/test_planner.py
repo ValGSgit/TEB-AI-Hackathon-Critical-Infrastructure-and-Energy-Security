@@ -165,15 +165,19 @@ def test_a_slow_platform_makes_created_jobs_pause_less(spec):
 
 
 def test_planner_profiles(spec):
-    """GREENOPS_PLANNER picks a named configuration; the default is the judged one, unknown names fail fast."""
-    from greenops.planner import PROFILES, make_planner
-    d, r2 = make_planner(spec, lambda a, n: [100.0] * 24), make_planner(spec, lambda a, n: [100.0] * 24, "run2plus")
-    assert (d.slack_h, d.finish_h, d.rescue) == (Planner.slack_h, Planner.finish_h, True)
+    """GREENOPS_PLANNER picks a named configuration; with none set (or "default") the image runs adaptive, the
+    judged configuration; "safe" keeps every rule always on; unknown names fail fast."""
+    from greenops.planner import DEFAULT_PROFILE, PROFILES, make_planner
+    f = lambda a, n: [100.0] * 24
+    d, r2, safe = make_planner(spec, f), make_planner(spec, f, "run2plus"), make_planner(spec, f, "safe")
+    assert DEFAULT_PROFILE == "adaptive" and d.name == make_planner(spec, f, "default").name == "carbon-aware/adaptive"
+    assert (d.slack_h, d.commit_h, d.protect_gap_h, d.rescue) == (0, -1, 0.75, True)
+    assert (safe.slack_h, safe.finish_h, safe.protect_gap_h, safe.rescue) == (Planner.slack_h, Planner.finish_h, 0, True)
     assert (r2.slack_h, r2.commit_h, r2.finish_h, r2.flat_slack_h, r2.gap_factor) == (0, -1, 0, 0, 0)
     assert r2.rescue and r2.urgent_late, "run2plus keeps the zero-cost protections"
     with pytest.raises(ValueError):
         make_planner(spec, lambda a, n: [100.0] * 24, "nope")
-    assert set(PROFILES) == {"default", "run2plus", "adaptive"}
+    assert set(PROFILES) == {"safe", "run2plus", "adaptive"}
 
 
 def test_adaptive_profile_protects_only_once_the_platform_is_slow(spec):
@@ -186,4 +190,4 @@ def test_adaptive_profile_protects_only_once_the_platform_is_slow(spec):
     assert not p._protect()
     p.gap_h = 3.0
     assert p._protect() and p._flat_slack() >= p.gap_factor * 3.0
-    assert make_planner(spec, lambda a, n: [100.0] * 24)._protect(), "the default profile always protects"
+    assert make_planner(spec, lambda a, n: [100.0] * 24, "safe")._protect(), "the safe profile always protects"

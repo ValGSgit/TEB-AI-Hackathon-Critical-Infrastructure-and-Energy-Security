@@ -71,6 +71,11 @@
   hours. Same sweep: 22,008 on a fast platform (like run2plus), 16/16 with 3 h polls and with stalls at 3 h
   polls (like or better than default). Weaker than default only for a sudden stall on a fast platform
   (13 vs 14/16) and for refused actions (never seen live).
+- **ADR-0018**: `adaptive` is the default profile, i.e. what the image runs with no `GREENOPS_PLANNER` set, which is
+  what the judges get. The old always-on configuration is the named profile `safe` (`default` is an alias of the
+  default). Reason: practice runs 9 and 10 with `adaptive` scored within 12 and 2 points of our best run (run 2),
+  15/15 with every safety net on, while `safe` scored about 120 points lower in runs 7 and 8. The offline
+  benchmark, the site and the Control Room now use the same default.
 - **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
   English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
   commit as the change they describe. External skills are optional: nothing in the repo depends on them.

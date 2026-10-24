@@ -5,7 +5,7 @@ TEB AI Hackathon: Critical Infrastructure & Energy Security · weXelerate, Vienn
 
 [![tests](https://github.com/ValGSgit/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security/actions/workflows/tests.yml/badge.svg)](https://github.com/ValGSgit/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security/actions/workflows/tests.yml)
 
-> Same work, same deadlines, same legal countries: **44% less carbon** than a naive scheduler
+> Same work, same deadlines, same legal countries: **46% less carbon** than a naive scheduler
 > (offline benchmark, 8 synthetic grids, 15/15 delivered on time in every run).
 > Ten practice runs on the live platform, all qualified. Every failure we hit became a rule and a test, and the
 > latest runs deliver 15/15 with every VM deleted within minutes of its delivery.
@@ -115,9 +115,10 @@ flowchart LR
    - pause less when the platform answers slowly;
    - the live loop never sits blind: deletes first, parallel actions and forecasts, a stale-forecast
      fallback, safe mode, 60 s status timeout.
-7. **Profiles** (`GREENOPS_PLANNER`): `default` keeps every safety rule on. `adaptive` plans like our best
-   run while the platform answers quickly, and switches the stall rules on by itself once a gap between
-   status replies exceeds 0.75 simulated hours. Nothing is tuned to one scenario.
+7. **Profiles** (`GREENOPS_PLANNER`): **`adaptive` is the default**, and what the image runs when nothing is set.
+   It plans like our best run while the platform answers quickly, and switches the stall rules on by itself
+   once a gap between status replies exceeds 0.75 simulated hours. `safe` keeps every rule always on.
+   Nothing is tuned to one scenario.
 
 Example: a job that needs 7 run hours gets a 10-hour block (R = running, · = stopped; quota is held for all
 10 hours):
@@ -141,13 +142,13 @@ Electricity is **synthetic**: 8 random grids built from generic country profiles
 | Naive: first legal zone, fastest profile, start at release | 24.63 ± 0.77 kg | – | 124.4 kWh | 15.13 kg | 20,323 | 15/15 |
 | + **where** and **which hardware** | 14.12 ± 0.43 kg | **−43%** | 106.7 kWh | 8.47 kg | 21,886 | 15/15 |
 | + **when** to start | 14.07 ± 0.43 kg | −43% | 107.3 kWh | 8.43 kg | 21,894 | 15/15 |
-| + **stop through dirty hours** (full planner) | **13.73 ± 0.44 kg** | **−44%** | 108.1 kWh | 8.16 kg | **21,945** | **15/15** |
+| + **stop through dirty hours** (full planner, `adaptive`) | **13.35 ± 0.45 kg** | **−46%** | 107.9 kWh | 7.94 kg | **22,013** | **15/15** |
 
-- Average grid intensity of the electricity used drops from 198 to 127 g/kWh, and energy drops 13%.
+- Average grid intensity of the electricity used drops from 198 to 124 g/kWh, and energy drops 13%.
 - Every policy delivers 15/15 on time on all 8 grids, with no lost work and no residency violation.
-- Placement and hardware choice are the biggest lever; pausing adds a further 3% on top. The full planner
-  gives up about 0.3% of offline score for safety (it never pauses a job that is nearly done or nearly
-  out of spare time, ADR-0015). On the real
+- Placement and hardware choice are the biggest lever; pausing adds a further 5% on top. With the stall
+  rules always on (`safe` profile) the planner gives up about 0.3%; `adaptive`, the default, turns them on
+  only when the platform is measured slow (ADR-0017, ADR-0018). On the real
   platform's grids the timing levers are worth more than on our synthetic ones (see `greenops/NEXT_STEPS.md`).
 
 ### Live platform (practice runs)
@@ -284,10 +285,11 @@ On Windows use `PYTHONUTF8=1`; the Git Bash notes are in [`greenops/NEXT_STEPS.m
 
 ## 8. Submission checklist
 
+Form fields and paste-ready build/run instructions: [`SUBMISSION.md`](SUBMISSION.md).
+
 - [ ] Repo access for the judges, plus the full commit SHA of the submitted version
 - [ ] Finalized run ID (the best practice run, finalized on the portal)
-- [ ] Planner profile decided: the judges run the image without `GREENOPS_PLANNER`, so the submitted
-      commit's `default` profile is what gets judged
+- [x] Planner profile: with no `GREENOPS_PLANNER` set the image runs `adaptive` (practice runs 9 and 10)
 - [ ] Container instructions: section 7 above (`docker build` / `docker run` with the five variables)
 - [ ] `git ls-files | grep -i -E "exo.*json|\.env$"` shows only `credentials.example.env`; no real-run carbon values in git
 - [ ] CI green on the submitted commit
