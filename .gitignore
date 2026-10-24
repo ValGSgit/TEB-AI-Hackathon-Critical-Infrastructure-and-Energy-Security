@@ -1,7 +1,9 @@
 __pycache__/
 *.pyc
-.pytest_cache/
 .env
+greenops-exo.json
+greenops-exo-*.json
+.local/
 .venv/
 node_modules/
 sky2.json
@@ -9,6 +11,3 @@ sky2.json
 *.bundle
 greenops/ui/dashboard-bare.html
 greenops/globe/earth-bare.html
-greenops-exo.json
-greenops-exo-*.json
-.local/

@@ -1,4 +1,7 @@
 __pycache__/
 .pytest_cache/
 .env
+greenops-exo.json
+greenops-exo-*.json
+.local/
 *.pyc

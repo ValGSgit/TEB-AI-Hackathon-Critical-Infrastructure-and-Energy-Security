@@ -9,8 +9,8 @@ Team repo. Everything we build, before and during the event, goes here.
 | Folder | What it is | Status |
 | --- | --- | --- |
 | [`greenops/`](greenops/) | Carbon-aware scheduler for the **Exoscale GreenOps Challenge** (our primary challenge) | Real-challenge planner, live API client and Docker image (see greenops/README.md) |
-| [`greenops/ui/`](greenops/ui/) | GreenOps Control Room: our decision explainer, separate from the platform dashboard (experiment ladder, options at release per workload, timeline in platform phase names, forecasts, policy comparison, quotas, residency, decision log) | Built from simulator runs; Friday: feed it real run data |
-| [`greenops/globe/`](greenops/globe/) | GreenOps Earth: 3D replay of a run on the real map with the 11 challenge zones by carbon intensity and workload arcs (satellite layers optional) | Built from simulator runs |
+| [`greenops/ui/`](greenops/ui/) | GreenOps Control Room: decision explainer, block/run-hours visualization, forecast panel, decision feed | Built from simulator runs; feeds from real-run decisions.jsonl |
+| [`greenops/globe/`](greenops/globe/) | GreenOps Earth: 3D replay of a run on the real map with the 11 challenge zones by carbon intensity | Built from simulator runs |
 | [`forcegeo/showcase/`](forcegeo/showcase/) | ForceGeo: location-trust checks for pipeline commands, on the real TAG/SOL gas corridor | Interactive demo page (backup for an open security track) |
 | [`forcegeo/galileo-live/`](forcegeo/galileo-live/) | Live Galileo and Sentinel-2 positions from real orbit data | Demo page, built from `template.html` |
 | [`forcegeo/galileo-design/`](forcegeo/galileo-design/) | Two screens: authentic Galileo sky vs a replay spoofing attack at the Murfeld sensor | Design files and the script that computes the real sky |
@@ -27,6 +27,7 @@ pytest                      # 34 tests, incl. the residency rule that can disqua
 python -m greenops.play --seeds 4           # planner vs baselines on the offline game
 python compare.py 20        # baseline vs carbon-aware on 20 practice scenarios
 python -m greenops.experiments --seeds 12   # experiment ladder (feeds the Control Room)
+python -m greenops.live                       # against real Exoscale API (set env vars)
 ```
 
 GreenOps Control Room:

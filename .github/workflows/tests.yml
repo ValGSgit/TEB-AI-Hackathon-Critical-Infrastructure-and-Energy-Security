@@ -15,6 +15,7 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest -q
+      - run: python -m greenops.play --seeds 2
       - run: python compare.py 5
       - run: python -m greenops.play --seeds 2
   galileo-live:
