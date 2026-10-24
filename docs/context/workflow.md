@@ -6,7 +6,7 @@ GreenOps scheduler (from `greenops/`):
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q        # about 70 tests, about 2 min
+python -m pytest -q        # about 75 tests, about 2 min
 python -m greenops.play --seeds 8                           # real-challenge planner on the offline game
 python compare.py 20                                        # earlier synthetic path
 python -m greenops.experiments --seeds 12

@@ -79,3 +79,24 @@ def test_loop_survives_a_bad_status_reply(monkeypatch, tmp_path):
         live.main()
     assert '"warning": "status failed: ValueError' in out.getvalue()
     assert f.game.score()["delivered"] >= 14 and not f.game.disqualified
+
+
+@pytest.mark.parametrize("run", ["r1", "other"])
+def test_work_endpoint_must_belong_to_the_run(monkeypatch, tmp_path, run):
+    """GREENOPS_WORK_ENDPOINT (given by the portal since run 3) is checked against the cloud run, not trusted."""
+    f = Fake(seed=1)
+    for k, v in dict(EXOSCALE_API_KEY="EXOtest", EXOSCALE_API_SECRET="s", GREENOPS_CLOUD_ENDPOINT=f.cloud,
+                     GREENOPS_GRID_ENDPOINT=f.grid_url, GREENOPS_GRID_SECRET="g",
+                     GREENOPS_WORK_ENDPOINT=f.cloud.replace("/runs/r1/", f"/runs/{run}/").removesuffix("/cloud/v2") + "/work/v1",
+                     NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost").items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr(sys, "argv", ["live", "--probe", "--env-file", str(tmp_path / "none.env"),
+                                      "--config", str(tmp_path / "none.json"), "--out", str(tmp_path)])
+    from greenops import live
+    with contextlib.redirect_stdout(io.StringIO()):
+        if run == "r1":
+            live.main()
+        else:
+            with pytest.raises(ValueError, match="Work endpoint"):
+                live.main()
+    assert not any(m == "POST" for m, _p in f.calls)

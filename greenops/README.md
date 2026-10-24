@@ -18,6 +18,7 @@ Windows checkouts.
 | `greenops/live.py` | Control loop against the real API: endpoint checks and the run-only adapter from the starter kit, client-side rate limit, idempotent create names, adoption of existing VMs after a restart |
 | `greenops/game.py` | Offline game with the real rules (stop/resume, per-worker input, sync overhead, output, idle until delete, quotas, residency DQ) on a **synthetic** per-country grid, for practice only |
 | `greenops/play.py` | Compares naive, +zone, +zone+shift and carbon-aware on the offline game |
+| `greenops/analyze.py` | Reads a live run's own logs: delivery vs deadline per job, planned vs actual start, blocked/refused actions, idle time; cites the log line behind every number |
 | `tests/fake_platform.py` | HTTP fake of the API subset `live.py` uses, served over the offline game |
 
 ### How the planner decides
@@ -29,8 +30,10 @@ Windows checkouts.
   2× its run time. Its **run hours** are the cleanest hours inside the block, and the job is stopped in the
   others. Quota (vCPUs, GPU cards, VM count) is reserved for the whole block.
 - Jobs are planned least flexible first, already-created ones first. Placement (zone, profile, workers) is
-  chosen among residency-legal zones only, with faster worker counts as fallbacks. Every job aims to
-  finish 2 h before its deadline.
+  chosen among residency-legal zones only, with faster worker counts as fallbacks. Every job must finish
+  2 h before its deadline (`margin_h`) and is planned to finish 4 h before that when it fits (`slack_h`).
+  A created job that no longer fits that runs every hour instead of pausing.
+- A start planned within 2 h is kept (`commit_h`): same placement and hour, quota right after created jobs.
 - Actions each tick: delete (after `final_output_delivered`), stop, start, create. The first create runs
   while the run is READY, because the run clock starts at the first accepted create. A refused action is
   forgotten and re-planned. Every change goes to a decision log with its reason.
@@ -39,10 +42,11 @@ Windows checkouts.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                       # 70 tests (on Windows: set PYTHONUTF8=1 for the exoscale package)
+python -m pytest -q                       # 75 tests (on Windows: set PYTHONUTF8=1 for the exoscale package)
 python -m greenops.play --seeds 4         # policy comparison on the offline game
 python -m greenops.live --probe --out .local/probe     # read-only API checks, creates nothing
 python -m greenops.live --out .local/run1              # live run
+python -m greenops.analyze .local/run1                 # what the run did, from its own logs
 ```
 
 Credentials never go in git: `.local/greenops.env` (template: `credentials.example.env`), the run's CLI
@@ -80,7 +84,7 @@ The image is `python:3.13-slim` with pinned `exoscale==0.16.3`, `requests==2.34.
 as a non-root user and writes only to `/tmp`. A full 120-hour run against the fake platform inside the
 container, with these limits (1 s polling = 0.2 simulated hours at 720×), delivered 15/15 at 53 MiB peak
 memory. Re-planning took 0.63 s on average and 0.82 s at most per simulated hour, including 8 forecast
-fetches; the budget is 5 s.
+fetches; the budget is 5 s. (Measured once, 23 Oct, commit `b695511`, before the slack/commit rules.)
 
 ### Results on the offline game (synthetic grids, 8 seeds: `python -m greenops.play --seeds 8`)
 
@@ -95,12 +99,16 @@ That is −46% against naive, mostly from *where* and *which hardware*. These ar
 uses the greenops-score-v2 formula (see the root README), which we confirmed against the platform's
 per-workload breakdown.
 
-### Assumptions to verify on the real API
+### Assumptions checked on the real API
 
-Assumptions, checked only against the fake so far: active watts during boot, input, compute and output, and
-idle watts while waiting or after done. Forecast points are hourly and aligned to whole hours. Instance-type
-ids equal catalog profile ids, with a fallback to family + size. Stop and start return an operation whose
-effect shows in the next work-status poll.
+Confirmed by the read-only probe (`.local/probe/probe.json`) and practice runs 1 and 2: the 11 zones equal
+the catalog; instance-type ids equal catalog profile ids; forecasts are hourly from T0 with 6 or 24 points
+(`datetime`, `carbonIntensity`); the work status carries the spec's required work for all 15 workloads;
+the first accepted create starts the clock; stop and start show up in the next work-status poll (both
+runs: 15/15 delivered, 0 refused actions, per `python -m greenops.analyze`).
+
+Still unverified (the API does not expose it): the power draw per phase (boot, input, compute, output,
+idle). The offline game models it from the catalog; only the dashboard's carbon reflects the real values.
 
 ## Earlier synthetic path (kept: the Control Room and Earth view use it)
 
@@ -134,7 +142,7 @@ never to one scenario.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q          # the full suite (70 tests, both paths)
+python -m pytest -q          # the full suite (75 tests, both paths)
 python compare.py 20         # policy comparison on 20 practice scenarios
 python -m greenops.experiments --seeds 12   # experiment ladder, one change at a time
 ```

@@ -53,7 +53,8 @@ def check_endpoint(value, reference=None):
 
 
 ENV_ALIASES = {"API_KEY": "EXOSCALE_API_KEY", "API_SECRET": "EXOSCALE_API_SECRET", "CLOUD_ENDPOINT": "GREENOPS_CLOUD_ENDPOINT",
-               "GRID_ENDPOINT": "GREENOPS_GRID_ENDPOINT", "GRID_SECRET": "GREENOPS_GRID_SECRET"}
+               "GRID_ENDPOINT": "GREENOPS_GRID_ENDPOINT", "GRID_SECRET": "GREENOPS_GRID_SECRET",
+               "WORK_ENDPOINT": "GREENOPS_WORK_ENDPOINT"}
 ENV_FILES = (".local/greenops.env", ".env", "../.env")
 
 
@@ -140,6 +141,9 @@ class Live:
             raise ValueError("Grid endpoint must belong to this cloud run")
         self.grid, self.grid_secret = grid_endpoint.rstrip("/"), grid_secret
         self.work = account["endpoint"].removesuffix("/cloud/v2") + "/work/v1/status"
+        given = os.environ.get("GREENOPS_WORK_ENDPOINT", "").rstrip("/").removesuffix("/status")
+        if given and given + "/status" != self.work:     # e.g. a fresh .env next to an old run config
+            raise ValueError("Work endpoint must belong to this cloud run")
         self.http = requests.Session()          # keep-alive for work + grid, locked to /runs/{id}/
         guard = RunOnlyAdapter(account["endpoint"], prefix=cloud.path.split("/cloud/")[0] + "/")
         self.http.mount("http://", guard)
