@@ -2,6 +2,13 @@
 
 ## Start here (Sat 24 Oct 2026, evening; for a fresh session)
 
+- **Final (submission):** submit `main`; claim **practice run 12**. Runs 11 and 12 ran `0393e7f` (the planner that
+  is submitted) with the `SUBMISSION.md` command verbatim and nothing set: both 15/15, qualified, every VM deleted.
+  Run 12 is the best of the submitted code and within noise of run 2; same-code runs vary by about ±10 points.
+  In run 11 one slow status reply (3.9 s at hour 26.5) switched the stall rules on, at no visible cost.
+  Next lever, not done: the two DE/HR GPU jobs (w-07, w-09) carry most of our electricity carbon. Larger GPU
+  machines would run fewer, cleaner hours, but pay off only if setup and output draw less than full power on the
+  platform, which we never measured. Scores and run IDs: `.local/SESSION_HANDOFF.md`.
 - **State:** `main` has every fix (PRs #14–#30). Run 9 (720×, `GREENOPS_PLANNER=adaptive`, commit `d01ec2a`)
   delivered 15/15 within 0.05% of run 2's score, with every safety net on. Run 2 (tag `run2-code`, commit
   `1e1a7702`, branch `submission/run2-code`) is still the best practice score by a hair. Run 10 repeats

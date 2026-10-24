@@ -330,14 +330,15 @@ footer p{max-width:72ch}
       </div>
       <div class="prose">
         <h3>On the live platform</h3>
-        <p>Ten practice runs, almost all inside our Docker image at 720× speed, the judges' setup, and all stayed
+        <p>Twelve practice runs, almost all inside our Docker image at 720× speed, the judges' setup, and all stayed
           qualified. Each failure became a rule and a test. Run 3 left a parallel job without room, so now a job with
           no room or only a late slot is planned first. Runs 5 and 6 hit a slow platform (one status reply took 65
           seconds, about 13 simulated hours), so now nearly finished jobs run straight through, the controller
           deletes first and acts in parallel, and it falls back to the run's last forecast if a request times out.
           With every safety rule on, runs 7 and 8 reproduced within 8 points. The adaptive profile (run 9) plans like
           our best run while the platform is fast and switches the stall rules on by itself when it slows: it came
-          within 0.05% of our best score. Real-run carbon and scores stay on the platform's dashboard, because the
+          within 0.05% of our best score. Runs 11 and 12 ran the submitted image with the exact submission command and
+          nothing configured; run 12 is the run we claim. Real-run carbon and scores stay on the platform's dashboard, because the
           rules forbid publishing a scenario's real values; the run figures here come from our own decision logs.</p>
         <h3 style="margin-top:28px">How the score works</h3>
         <p>We checked this formula against the platform's own per-job breakdown: each job earns up to its share of 20,000
