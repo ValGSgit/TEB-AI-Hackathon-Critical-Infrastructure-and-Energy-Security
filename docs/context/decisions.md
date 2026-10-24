@@ -12,6 +12,9 @@
   disqualifies the whole run even if the API rejects it.
 - **ADR-0005**: UI and 3D globe consume a versioned JSON run export produced by `greenops.export` from the local
   simulator; a second exporter from the real platform is expected on Friday with no UI changes.
+- **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
+  English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
+  commit as the change they describe. External skills are optional: nothing in the repo depends on them.
 - **ADR-0007**: Vendor the organizers' public spec (`greenops/challenge/*.json`, hash-checked against their manifest)
   and load it with `spec.py` into the existing model, instead of hand-copying numbers. Public data only: no electricity
   series.
@@ -81,6 +84,7 @@
   and 8. Known cost: once one reply gap exceeds 0.75 h the stall rules stay on for the rest of the run (`gap_h` is
   the longest gap seen), and a sudden stall on an otherwise fast platform is its weakest case (ADR-0017). The
   offline benchmark (every rung of the ladder), the site and the Control Room use the same default.
-- **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
-  English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
-  commit as the change they describe. External skills are optional: nothing in the repo depends on them.
+- **ADR-0019**: CI guards the judged artifact itself: the `greenops` tests run on Python 3.12 and 3.13 (the image's
+  version), and an `image` job builds `greenops/Dockerfile` and starts it with the judges' limits (`--help`, no
+  credentials). Third-party code is never committed: the local Feint clone (the API emulator behind the platform,
+  kept for reference) is git-ignored instead of tracked as a broken gitlink without `.gitmodules`.
