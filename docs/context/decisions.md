@@ -44,7 +44,9 @@
 - **ADR-0014**: The live loop spends as little wall time as possible: at 720× one wall second is 0.2 simulated hours.
   Delivered VMs are deleted first in every poll. Forecasts are fetched once per re-plan, cached per area and hour,
   and the 8 areas are fetched in parallel (thread-safe rate limiter). Reason: run 3 went up to ~23 wall seconds
-  without a poll, and VMs idled for hours after delivery.
+  without a poll, and VMs idled for hours after delivery. After run 6 (actions up to 17.6 s each): stop / start /
+  delete actions of a poll go out in parallel; status read timeout 60 s, forecast read timeout 10 s (with the
+  stale-forecast fallback of ADR-0016).
 - **ADR-0015**: Finish what is nearly done. A created job with at most `finish_h` = 12 run hours left runs them
   without pauses. Reason: run 5's platform answered one status request after 65 s (~13 simulated hours at 720×),
   and a paused, nearly finished job resumed after its deadline. Offline with a 15 h stall late in the run:
@@ -53,6 +55,11 @@
   `flat_slack_h` = 12 h of spare time also stops pausing (adverse-condition sweep of 192 runs: fewer misses after
   long stalls and refused actions, about −9 points on a normal platform). Not adopted: marking a job urgent after a
   refused create (no measurable effect).
+- **ADR-0016**: An unreachable platform must never leave unfinished work stopped. A failed forecast request reuses
+  this run's latest forecast for the area (shifted to now; still only this run's data, rule 2). If planning fails
+  anyway, safe mode starts every stopped VM of an unfinished workload. The pause threshold is
+  max(`flat_slack_h`, `gap_factor` = 3 × the longest gap between status replies). Reason: in run 6 forecast timeouts
+  made planning fail at hour 101, and a job paused at hour 90 stayed stopped until the run ended.
 - **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
   English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
   commit as the change they describe. External skills are optional: nothing in the repo depends on them.

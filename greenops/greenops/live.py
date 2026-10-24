@@ -35,7 +35,8 @@ from .planner import Planner
 from .spec import load, to_h
 
 TERMINAL = {"COMPLETED", "INVALIDATED", "UNAVAILABLE"}
-STATUS_TIMEOUT_S = 30           # read timeout for the work status (connect timeout: 5 s)
+STATUS_TIMEOUT_S = 60           # read timeout for the work status (connect timeout: 5 s); run 6 replies took up to 36 s
+FORECAST_TIMEOUT_S = 10         # a slow forecast falls back to this run's last one (Live._stale), so do not wait long
 
 
 # ---------------------------------------------------------------- account and run-scoped HTTP
@@ -155,6 +156,8 @@ class Live:
         self.http.mount("https://", guard)
         self.types, self.template = {}, {}
         self.fc_cache = {}                    # (area, hour, horizon) -> values: forecasts change at most hourly
+        self.fc_last = {}                     # area -> (hour, values) of the latest forecast received
+        self.fc_failed = set()                # (area, hour) whose prefetch failed: use fc_last instead
         self.vm_zone = {}
 
     def _client(self, url):
@@ -186,20 +189,52 @@ class Live:
         key = (area, int(now_h), horizon)
         if key not in self.fc_cache:
             self.fc_cache = {k: v for k, v in self.fc_cache.items() if k[1] >= int(now_h) - 1}
-            self.fc_cache[key] = self._fetch_forecast(area, now_h, horizon)
+            try:
+                if (area, int(now_h)) in self.fc_failed and area in self.fc_last:
+                    raise TimeoutError("failed in this hour's prefetch")      # do not wait for it a second time
+                self._store(key, self._fetch_forecast(area, now_h, horizon))
+            except Exception as e:
+                vals = self._stale(area, now_h, horizon)
+                if vals is None:
+                    raise
+                print(json.dumps({"warning": f"forecast for {area} failed ({type(e).__name__}); using this run's "
+                                             f"forecast from hour {self.fc_last[area][0]}"}))
+                return vals
         return self.fc_cache[key]
+
+    def _store(self, key, vals):
+        self.fc_cache[key] = vals
+        self.fc_last[key[0]] = (key[1], vals)
+
+    def _stale(self, area: str, now_h: float, horizon: int):
+        """The latest forecast this run published for the area, shifted to now (run 6: forecast requests timed out
+        and planning stopped, which left a paused job stopped past its deadline). Still only this run's forecast."""
+        if area not in self.fc_last:
+            return None
+        h, vals = self.fc_last[area]
+        tail = vals[max(0, int(now_h) - h):]
+        return (list(tail) + [tail[-1] if tail else vals[-1]] * horizon)[:horizon]
 
     def prefetch(self, areas, now_h: float) -> None:
         """Fetch every area's forecast for this hour in parallel, so the hourly re-plan waits for one round trip
         instead of eight in a row (at 720x each wall second is 0.2 simulated hours)."""
         todo = [a for a in areas if (a, int(now_h), 24) not in self.fc_cache]
+
+        def one(a):
+            try:
+                return self._fetch_forecast(a, now_h, 24)
+            except Exception:
+                return None                   # forecast() retries it once and falls back to the last one
         with ThreadPoolExecutor(max_workers=min(8, len(todo) or 1)) as ex:
-            for a, vals in zip(todo, ex.map(lambda a: self._fetch_forecast(a, now_h, 24), todo)):
-                self.fc_cache[(a, int(now_h), 24)] = vals
+            for a, vals in zip(todo, ex.map(one, todo)):
+                if vals is not None:
+                    self._store((a, int(now_h), 24), vals)
+                else:
+                    self.fc_failed.add((a, int(now_h)))
 
     def _fetch_forecast(self, area: str, now_h: float, horizon: int) -> list:
         self.api.wait()
-        r = self.http.get(self.grid + "/carbon-intensity/forecast", timeout=20, allow_redirects=False,
+        r = self.http.get(self.grid + "/carbon-intensity/forecast", timeout=(5, FORECAST_TIMEOUT_S), allow_redirects=False,
                          params={"zone": area, "horizonHours": horizon}, headers={"auth-token": self.grid_secret})
         r.raise_for_status()
         pts = {int(round(to_h(p["datetime"]))): float(p["carbonIntensity"]) for p in r.json()["forecast"]}
@@ -267,6 +302,39 @@ class Live:
 
 
 # ---------------------------------------------------------------- control loop
+def act_parallel(live, planner, now: float, acts: list, where: dict, workers: int = 8) -> None:
+    """Send stop / start / delete actions at the same time (the rate limiter is thread-safe). Refusals are
+    handed to the planner in this thread, after all replies are in."""
+    if not acts:
+        return
+
+    def one(a):
+        try:
+            live.act(a[0], a[1], where.get(a[1]))
+            return None
+        except Exception as e:                      # quota, transient API errors: re-planned next tick
+            return str(e)[:200]
+    with ThreadPoolExecutor(max_workers=min(workers, len(acts))) as ex:
+        errors = list(ex.map(one, acts))
+    for a, err in zip(acts, errors):
+        if err is not None:
+            planner.rejected(now, a, err)
+
+
+def safe_actions(planner, st: dict) -> list:
+    """Planning failed: start every stopped VM of an unfinished workload. Running costs some carbon; staying
+    stopped while the platform is unreachable can cost the deadline (and the 5,000-point bonus)."""
+    acts = []
+    for r in st["workloads"]:
+        if r["final_output_delivered"]:
+            continue
+        stopped = [a["vm_id"] for a in r["assignments"] if a["state"] == "stopped"]
+        acts += [("start", v, r["id"]) for v in stopped]
+        if stopped:
+            planner._log(st["now_h"], r["id"], "run", "safe mode: planning failed, so unfinished work runs")
+    return acts
+
+
 def view(raw: dict) -> dict:
     """Work-status response -> the planner's view (same shape as game.Game.status())."""
     vt = raw.get("virtual_time")
@@ -395,16 +463,14 @@ def main():
             last_sample = int(st["now_h"])
         where = {a["vm_id"]: a["zone"] for r in st["workloads"] for a in r["assignments"]}
         # deletes first: a delivered job's VMs only draw idle power, and nothing below may hold them up
+        dels = []
         for r in st["workloads"]:
             if r["final_output_delivered"] and r["assignments"]:
                 ids = [x["vm_id"] for x in r["assignments"]]
-                for vm in ids:
-                    try:
-                        live.act("delete", vm, where.get(vm))
-                    except Exception as e:              # retried next poll: the status still lists the VM
-                        planner.rejected(st["now_h"], ("delete", vm, r["id"]), str(e)[:200])
+                dels += [("delete", vm, r["id"]) for vm in ids]
                 planner._log(st["now_h"], r["id"], "delete", "final output delivered; deleting ends idle draw", vms=ids)
                 r["assignments"] = []
+        act_parallel(live, planner, st["now_h"], dels, where)   # a refused delete is retried next poll
         if int(st["now_h"]) != planner._plan_hour:      # the planner re-plans this poll: fetch forecasts in parallel
             try:
                 live.prefetch(areas, st["now_h"])
@@ -415,20 +481,19 @@ def main():
             actions = planner.bootstrap(st) if st["state"] == "READY" else planner.decide(st)
         except ResidencyViolation:
             raise                                   # never happens by construction; stop hard if it does
-        except Exception as e:                      # e.g. a forecast fetch failed: re-plan next poll
+        except Exception as e:                      # e.g. no forecast at all: never leave unfinished work stopped
             print(json.dumps({"warning": f"planning failed: {type(e).__name__}: {str(e)[:200]}"}))
-            time.sleep(1)
-            continue
+            actions = safe_actions(planner, st)
         t2 = time.monotonic()
-        for act in actions:
+        # stop / start / delete touch one VM each, so they go out together: in run 6 one action took 17.6 s, and a
+        # poll with six of them waited for each in turn. Creates stay in order (names, quota, the clock).
+        act_parallel(live, planner, st["now_h"], [a for a in actions if a[0] != "create"], where)
+        for act in [a for a in actions if a[0] == "create"]:
             try:
-                if act[0] == "create":
-                    _, wid, zone, prof, i = act
-                    n = names[(wid, i)] = names.get((wid, i), -1) + 1
-                    vm = live.create(W[wid], zone, prof, f"gops-{wid}-{i}-{n}")
-                    planner.vm_profile[vm] = prof
-                else:
-                    live.act(act[0], act[1], where.get(act[1]))
+                _, wid, zone, prof, i = act
+                n = names[(wid, i)] = names.get((wid, i), -1) + 1
+                vm = live.create(W[wid], zone, prof, f"gops-{wid}-{i}-{n}")
+                planner.vm_profile[vm] = prof
             except ResidencyViolation:
                 raise                                   # never happens by construction; stop hard if it does
             except Exception as e:                      # quota, transient API errors: re-planned next tick

@@ -6,38 +6,21 @@ The fields the Control Room and analyze.py use from each decision line:
 """
 import json
 
-import pytest
-
 from greenops.analyze import analyze
-from greenops.game import Game, make_grid
 from greenops.planner import Planner
+from greenops.play import run as play
 from greenops.spec import load, to_ts
 
 
-def test_analyze_interprets_live_decision_log_contractly(tmp_path):
+def test_analyze_reads_the_planners_decision_log(tmp_path):
     """Play the real planner on the offline game (seed 11), write its own decision log and a final
     status line in the live work-status shape, then verify analyze reproduces the game's results."""
     spec = load()
-    grid = make_grid(11, {s.area for s in spec.sites.values()})
-    game = Game(spec, grid)
-    planner = Planner(spec, grid.forecast)
-
-    # Run the full game using the planner
-    from greenops.play import apply
-    nxt = 0.0
-    while game.now < spec.horizon_h - 1e-9 and not game.disqualified:
-        if game.now + 1e-9 >= nxt:
-            st = game.status()
-            acts = planner.bootstrap(st) if st["state"] == "READY" else planner.decide(st)
-            apply(game, planner, acts)
-            nxt += 0.25
-        game.step()
+    game, planner = play(spec, 11, Planner)
 
     assert not game.disqualified
     score = game.score()
     assert score["delivered"] == 15
-
-    # Write decisions.jsonl in the live format
 
     # Build a single final status.jsonl line in the live work-status shape
     final_st = game.status()
@@ -67,6 +50,7 @@ def test_analyze_interprets_live_decision_log_contractly(tmp_path):
         "workloads": wl_rows,
     }
 
+    # Write decisions.jsonl in the live format
     (tmp_path / "decisions.jsonl").write_text(
         "\n".join(json.dumps(d) for d in planner.decisions) + "\n", encoding="utf-8"
     )
@@ -86,9 +70,9 @@ def test_analyze_interprets_live_decision_log_contractly(tmp_path):
         rw = run["workloads"][wid]
         gs = game.ws[wid]
         if gs.delivered_h is not None:
-            expected_slack = round(w.deadline_h - gs.delivered_h, 2)
-            assert rw["slack_h"] == expected_slack, (
-                f"{w.id}: analyze slack={rw['slack_h']} != game slack={expected_slack}"
+            expected_slack = w.deadline_h - gs.delivered_h          # analyze rounds both ends to 0.01 h
+            assert abs(rw["slack_h"] - expected_slack) <= 0.01 + 1e-9, (
+                f"{w.id}: analyze slack={rw['slack_h']} != game slack={expected_slack:.3f}"
             )
         else:
             assert rw["slack_h"] is None

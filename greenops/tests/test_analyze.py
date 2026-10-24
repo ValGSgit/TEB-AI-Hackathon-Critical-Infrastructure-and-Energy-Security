@@ -1,21 +1,12 @@
 """The run analysis reads only the run's own logs and says where every delivery time came from."""
 import json
 
-import pytest
-
 from greenops.analyze import analyze
 from greenops.spec import load, to_ts
 
 
 def _write(path, records):
     path.write_text("\n".join(json.dumps(r) for r in records) + "\n{torn", encoding="utf-8")
-
-
-def _healthy_rows(spec):
-    W = {w.id: w for w in spec.workloads}
-    return [{"id": w.id, "required_work": w.work_units, "completed_work": 0.0, "lost_work": 0.0,
-             "output_ready_at": None, "final_output_delivered": False, "assignments": []}
-            for w in spec.workloads]
 
 
 def test_slack_drift_and_sources(tmp_path):

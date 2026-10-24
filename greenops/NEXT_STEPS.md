@@ -9,7 +9,7 @@ Written after day 1 (Fri 23 Oct 2026), after two practice runs. Start here on Sa
   platform refused no actions. It is **first on the preliminary leaderboard**. The carbon and score figures are on
   the run dashboard only; real-run values stay out of git (rule 2).
 - Everything is on `main`: PRs #6–#11 (#9: the controller never exits mid-run; #11: Oliver's residency/forecast
-  tests and UI). Tests: `python -m pytest -q` from `greenops/` (92 tests, about 2.5 min).
+  tests and UI). Tests: `python -m pytest -q` from `greenops/` (96 tests, about 2–5 min).
 - PR #5 (Oliver, `AGENTS.md` + `docs/context/`) is merged, with `docs/context/` updated for the real-challenge path
   (ADR-0007 to ADR-0010). Keep those docs current in the same commit as each change.
 
@@ -126,6 +126,30 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
   job with ≤ 12 h of spare time stops pausing (fewer misses after stalls, −9 points normally).
 - Also fixed: a block for a created job could run past hour 120 and crash planning with an IndexError,
   which live would fail every poll. Never seen live; found by the stall test.
+
+## Run 6 (720×, Docker, commit `2eb3677`): 12/15 in our logs, the slowest platform yet
+
+- Status replies took 20 s at the median (max 36 s), so there was a decision only every 3–6 simulated hours. From
+  hour 90 to 101 there was no reply (36 s status + 17.6 s action). At 101 the forecast requests timed out
+  (20 s), **planning failed, and the controller did nothing**; the next status also timed out and the run ended.
+- w-11 had been paused at hour 90 with 13 h of spare time (the rule was 12 h) and stayed stopped: missed.
+  w-05 and w-13 were still running at hour 101 and did deliver (dashboard: 14/15, w-11 at 90.7%). The score was
+  below run 2, and electricity was about 1.7 kg higher.
+- **Idle after delivery was large** (platform timeline): w-15 26 h, w-14 14–17 h (2 VMs), w-10 12 h, w-12 11 h,
+  w-05 and w-13 (3 VMs) never deleted before the end. Idle draw is 20% of active power on every profile, so
+  that is roughly 4 kWh. Cause: we learn about a delivery only from a status reply, replies came every
+  3–6 simulated hours, and actions were sent one by one at up to 17.6 s each.
+- Fixes after run 6 (perf/parallel-actions, ADR-0014 extended): stop / start / delete actions of a poll go out
+  in parallel (creates stay in order); status timeout 60 s (replies took up to 36 s); forecast timeout 10 s
+  (a slow forecast falls back to this run's last one). Not done: stopping extra workers once only output
+  remains. The spec does not say how the platform ships output with several workers, and a wrong guess
+  could stall a delivery.
+- Fixes (fix/never-idle-when-blind, ADR-0016):
+  - a failed forecast request reuses this run's latest forecast for that area, shifted to the current hour,
+    and an area that failed in this hour's prefetch is not fetched a second time;
+  - if planning still fails, safe mode starts every stopped VM of an unfinished workload;
+  - the pause threshold grows with the platform's slowness: a created job stops pausing when its spare time
+    is at most max(12 h, 3 × the longest gap between status replies seen).
 
 ## Plan, in order
 
