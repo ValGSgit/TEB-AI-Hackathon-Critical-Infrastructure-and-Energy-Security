@@ -5,7 +5,7 @@ TEB AI Hackathon: Critical Infrastructure & Energy Security · weXelerate, Vienn
 
 [![tests](https://github.com/ValGSgit/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security/actions/workflows/tests.yml/badge.svg)](https://github.com/ValGSgit/TEB-AI-Hackathon-Critical-Infrastructure-and-Energy-Security/actions/workflows/tests.yml)
 
-> Same work, same deadlines, same legal countries: **46% less carbon** than a naive scheduler
+> Same work, same deadlines, same legal countries: **45% less carbon** than a naive scheduler
 > (offline benchmark, 8 synthetic grids, 15/15 delivered on time in every run).
 > Two practice runs on the live platform: 15/15 on time, qualified, every VM cleaned up, no refused actions.
 
@@ -129,13 +129,14 @@ Electricity is **synthetic**: 8 random grids built from generic country profiles
 | Policy (added one lever at a time) | Carbon (mean ± sd) | vs naive | Energy | GPU carbon | Score | On time |
 | --- | --- | --- | --- | --- | --- | --- |
 | Naive: first legal zone, fastest profile, start at release | 24.63 ± 0.77 kg | – | 124.4 kWh | 15.13 kg | 20,323 | 15/15 |
-| + **where** and **which hardware** | 14.10 ± 0.42 kg | **−43%** | 107.2 kWh | 8.46 kg | 21,889 | 15/15 |
-| + **when** to start | 14.07 ± 0.42 kg | −43% | 106.9 kWh | 8.46 kg | 21,894 | 15/15 |
-| + **stop through dirty hours** (full planner) | **13.35 ± 0.45 kg** | **−46%** | 107.9 kWh | 7.94 kg | **22,013** | **15/15** |
+| + **where** and **which hardware** | 14.12 ± 0.43 kg | **−43%** | 106.7 kWh | 8.47 kg | 21,886 | 15/15 |
+| + **when** to start | 14.07 ± 0.43 kg | −43% | 107.3 kWh | 8.43 kg | 21,894 | 15/15 |
+| + **stop through dirty hours** (full planner) | **13.65 ± 0.41 kg** | **−45%** | 108.1 kWh | 8.10 kg | **21,958** | **15/15** |
 
-- Average grid intensity of the electricity used drops from 198 to 124 g/kWh, and energy drops 13%.
+- Average grid intensity of the electricity used drops from 198 to 126 g/kWh, and energy drops 13%.
 - Every policy delivers 15/15 on time on all 8 grids, with no lost work and no residency violation.
-- Placement and hardware choice are the biggest lever; pausing adds a further 5% on top. On the real
+- Placement and hardware choice are the biggest lever; pausing adds a further 3% on top. The full planner
+  gives up about 0.25% of offline score for safety (it never pauses a job that is nearly done, ADR-0015). On the real
   platform's grids the timing levers are worth more than on our synthetic ones (see `greenops/NEXT_STEPS.md`).
 
 ### Live platform (practice runs)
@@ -160,7 +161,7 @@ budget is 5 s.
 
 ### Tests
 
-75 tests (`python -m pytest -q`, about 2 min), run in CI on every push:
+83 tests (`python -m pytest -q`, about 2 min), run in CI on every push:
 
 | Area | What is tested |
 | --- | --- |
@@ -223,7 +224,7 @@ flowchart TB
 │   │   ├── model.py              Zone, Profile, Workload, Quotas
 │   │   └── policy.py, sim.py, scenario.py, catalog.py, export.py, experiments.py
 │   │                             pre-event synthetic path; still feeds the Control Room samples
-│   ├── tests/                    75 tests, incl. fake_platform.py
+│   ├── tests/                    83 tests, incl. fake_platform.py
 │   ├── ui/                       GreenOps Control Room (decision explainer)
 │   └── globe/                    GreenOps Earth (3D replay on the map)
 ├── site/                         project site for GitHub Pages (template + build from the offline game)
@@ -239,7 +240,7 @@ Python 3.12+ (the image uses 3.13). From `greenops/`:
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                         # 75 tests
+python -m pytest -q                         # 83 tests
 python -m greenops.play --seeds 8           # the benchmark table above
 ```
 

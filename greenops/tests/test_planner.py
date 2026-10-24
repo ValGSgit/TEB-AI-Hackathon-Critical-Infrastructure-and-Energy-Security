@@ -116,5 +116,41 @@ def test_no_job_starves_when_quota_is_tight(spec, seed):
     tight = dataclasses.replace(spec, quotas=dataclasses.replace(spec.quotas, max_vcpus=240, max_vms=16))
     game, _ = run(tight, seed, lambda s, f: Planner(s, f))
     assert game.score()["delivered"] == 15 and not game.disqualified
-    old, _ = run(tight, seed, lambda s, f: Planner(s, f, rescue=False))
+    old, _ = run(tight, seed, lambda s, f: Planner(s, f, rescue=False, urgent_late=False, finish_h=0))
     assert old.score()["delivered"] < 15, "the stress case must still reproduce the starvation"
+
+
+def test_planning_never_crashes_near_the_end_of_the_run(spec):
+    """A created job whose remaining work runs past hour 120 used to index past the cost array (IndexError),
+    which in a live run would fail every poll. It must fall back to running every hour instead."""
+    w = next(x for x in spec.workloads if x.id == "w-03-med-analysis")
+    zone = _legal_zone(spec, w)
+    p = Planner(spec, lambda a, n: [100.0] * 24)
+    p.vm_profile["vm-a"] = next(pr.id for pr in spec.profiles if pr.available_in(zone) and suitable(pr, w))
+    rows = [{"id": x.id, "required_work": x.work_units, "completed_work": 0.0 if x.id == w.id else x.work_units,
+             "lost_work": 0.0, "output_ready_at": None, "final_output_delivered": x.id != w.id,
+             "assignments": [{"vm_id": "vm-a", "zone": zone, "state": "stopped"}] if x.id == w.id else []}
+            for x in spec.workloads]
+    acts = p.decide({"now_h": 110.0, "workloads": rows})
+    assert ("start", "vm-a", w.id) in acts and p.plan[w.id].run == frozenset(range(110, p.plan[w.id].end))
+
+
+def test_a_long_platform_stall_does_not_strand_a_nearly_done_job(spec):
+    """Run 5: a 65 s status reply (about 13 simulated hours at 720x) left w-03 stopped with 6 run hours to go,
+    and it missed its deadline. Jobs with at most finish_h run hours left now run without pauses."""
+    from greenops.game import Game, make_grid
+    from greenops.play import apply
+
+    def stalled(**kw):
+        grid = make_grid(0, {s.area for s in spec.sites.values()})
+        p, g, nxt = Planner(spec, grid.forecast, **kw), Game(spec, grid), 0.0
+        while g.now < spec.horizon_h - 1e-9:
+            if g.now + 1e-9 >= nxt:
+                if not 103.5 <= g.now < 118.5:          # no status reply for 15 simulated hours
+                    apply(g, p, p.decide(g.status()))
+                nxt += 3.0                              # and one reply every 3 hours, as in run 5
+            g.step()
+        return g.score()["delivered"]
+
+    assert stalled() == 15
+    assert stalled(finish_h=0) < 15, "the stall must still strand a job without the rule"

@@ -45,6 +45,11 @@
   Delivered VMs are deleted first in every poll. Forecasts are fetched once per re-plan, cached per area and hour,
   and the 8 areas are fetched in parallel (thread-safe rate limiter). Reason: run 3 went up to ~23 wall seconds
   without a poll, and VMs idled for hours after delivery.
+- **ADR-0015**: Finish what is nearly done. A created job with at most `finish_h` = 12 run hours left runs them
+  without pauses. Reason: run 5's platform answered one status request after 65 s (~13 simulated hours at 720×),
+  and a paused, nearly finished job resumed after its deadline. Offline with a 15 h stall late in the run:
+  1/12 → 12/12 grids fully on time, for −0.25% score on a normal platform. Rejected: widening every deadline
+  margin by the observed poll gap (it crowded quota and did worse in stalls).
 - **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
   English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
   commit as the change they describe. External skills are optional: nothing in the repo depends on them.
