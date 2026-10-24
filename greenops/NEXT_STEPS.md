@@ -2,9 +2,10 @@
 
 ## Start here (Sat 24 Oct 2026, evening; for a fresh session)
 
-- **State:** `main` has every fix (PRs #14–#26; #26 = tests from the code review). Run 7 (720×, Docker, commit `24da484`) delivered 15/15 and
-  stayed qualified, with all VMs deleted within 0.3 h of delivery. Run 2 (tag `run2-code`, commit `1e1a7702`,
-  branch `submission/run2-code`) is still the best practice score, by 0.6%. Exact scores, run IDs and the run
+- **State:** `main` has every fix (PRs #14–#30). Run 9 (720×, `GREENOPS_PLANNER=adaptive`, commit `d01ec2a`)
+  delivered 15/15 within 0.05% of run 2's score, with every safety net on. Run 2 (tag `run2-code`, commit
+  `1e1a7702`, branch `submission/run2-code`) is still the best practice score by a hair. Run 10 repeats
+  `adaptive` (commit `1a5a69a`; only change: the safe-mode residency check from the review, #30). Exact scores, run IDs and the run
   table are in `greenops/.local/SESSION_HANDOFF.md` (git-ignored; real-run values never go in git).
 - **Run 8** at 360× (the user's choice, to compare speeds), code = `main` at `0b75ed5` (PR #26 added tests only).
 - **What `main` does differently from run 2** (all measured offline, see ADR-0012 to ADR-0016):
@@ -32,11 +33,14 @@
   on a slow one.
 - **Run 9** (720×): `-e GREENOPS_PLANNER=adaptive`, i.e. run 2's planning on a fast platform, with the protections
   switching on when the platform turns slow (ADR-0017). Compare it with run 2 on the dashboard.
-- **Decision for Sunday:** which commit to submit. Recommended: `main`, because it is robust to slow
-  platforms and crowding; the 5,000-point bonus outweighs a ~0.6% carbon edge. The fallback is `run2-code`.
+- **Decision for Sunday:** the judges run the image **without** `GREENOPS_PLANNER`, so the submitted commit's
+  `default` profile is what is judged. If run 10 confirms run 9, make the default behave like `adaptive`
+  (one-line change in `PROFILES`/`Planner` defaults plus test updates) before submitting. Otherwise submit
+  `main` as it is. `run2-code` is the frozen reference, not a candidate: the review (#30) confirms it lacks
+  every fix from runs 3–6.
 - **Pitch:** private deck "GreenOps jury pitch" (Claude artifact, 11 slides) built with the personal
   `pitch-deck` skill. Its fact sheet is `~/.claude/skills/pitch-deck/references/greenops-hackathon.md`
-  (outside the repo). Before presenting: add run 8, check names, share it.
+  (outside the repo). Before presenting: add run 10, check names, share it.
 - **Analyse a run:** `python -m greenops.analyze .local/runN`, then compare with the dashboard. Launch
   commands: "How to run" below, with the Docker variant and `--probe` first. Credentials: check that the
   `.env` endpoints and `greenops-exo.json` name the same run ID (`live.py` refuses a mismatched work endpoint).
