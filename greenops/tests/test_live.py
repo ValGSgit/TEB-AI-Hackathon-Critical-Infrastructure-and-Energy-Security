@@ -141,3 +141,93 @@ def test_status_waits_for_a_slow_platform(monkeypatch):
     lv.a, lv.work, lv.http = {"key": "EXOtest", "secret": "s"}, "https://example.test/runs/r1/work/v1/status", H()
     assert lv.status() == {"ok": True}
     assert seen["timeout"] == (5, live.STATUS_TIMEOUT_S) and live.STATUS_TIMEOUT_S >= 25
+
+
+def test_limiter_under_concurrency():
+    """PR #17 made Limiter shared by up to 8 threads in Live.prefetch. 8 threads calling wait() 5 times each
+    must produce 40 timestamps, sorted, never closer than about 1/50 s minus a small tolerance, and the total
+    elapsed time must be at least 39/50 s."""
+    import threading
+    import time as time_mod
+    from greenops.live import Limiter
+
+    lim = Limiter(per_s=50)
+    ts = []
+    lock = threading.Lock()
+
+    def worker():
+        for _ in range(5):
+            lim.wait()
+            with lock:
+                ts.append(time_mod.monotonic())
+
+    t_start = time_mod.monotonic()
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+    t_elapsed = time_mod.monotonic() - t_start
+
+    assert len(ts) == 40
+    sorted_ts = sorted(ts)
+    tolerance_ms = 0.002
+    min_gap = 1.0 / 50.0 - tolerance_ms
+    for i in range(1, len(sorted_ts)):
+        assert sorted_ts[i] - sorted_ts[i - 1] >= min_gap, (
+            f"gap {sorted_ts[i] - sorted_ts[i - 1]:.4f} s below {min_gap:.4f} s at index {i}"
+        )
+    assert t_elapsed >= 39.0 / 50.0, f"total elapsed {t_elapsed:.3f} s < 39/50 s"
+    assert t_elapsed < 2.0, f"total elapsed {t_elapsed:.3f} s exceeds 2 s budget"
+
+
+def test_status_signature_is_pinned():
+    """Live.status computes an EXO2 HMAC-SHA256 signature over the request path and a fixed expires value.
+    Verify the exact header shape and that recomputing the signature independently matches."""
+    import base64
+    import hashlib
+    import hmac as hmac_mod
+    import unittest.mock
+
+    from greenops import live
+
+    fixed_time = 1_700_000_000.0
+    secret = "my-secret"
+    key = "EXOtest"
+    work_path = "/runs/r1/work/v1/status"
+    expires = int(fixed_time) + 60
+
+    seen_header = {}
+
+    class R:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"ok": True}
+
+    class H:
+        def get(self, url, timeout=None, headers=None, **kw):
+            if headers:
+                seen_header["auth"] = headers.get("Authorization", "")
+            return R()
+
+    lv = live.Live.__new__(live.Live)
+    lv.a = {"key": key, "secret": secret}
+    lv.work = f"https://example.test{work_path}"
+    lv.http = H()
+
+    with unittest.mock.patch("greenops.live.time.time", return_value=fixed_time):
+        result = lv.status()
+
+    assert result == {"ok": True}
+    assert "auth" in seen_header
+
+    expected_sig = base64.b64encode(
+        hmac_mod.new(secret.encode(), "\n".join(["GET " + work_path, "", "", "", str(expires)]).encode(),
+                     hashlib.sha256).digest()
+    ).decode()
+    expected = f"EXO2-HMAC-SHA256 credential={key},expires={expires},signature={expected_sig}"
+    assert seen_header["auth"] == expected
