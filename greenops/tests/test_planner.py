@@ -120,6 +120,21 @@ def test_no_job_starves_when_quota_is_tight(spec, seed):
     assert old.score()["delivered"] < 15, "the stress case must still reproduce the starvation"
 
 
+@pytest.mark.parametrize("seed", [0, 3, 11])
+def test_the_judged_default_is_legal_on_time_and_survives_tight_quota(spec, seed):
+    """The image runs DEFAULT_PROFILE (adaptive) when GREENOPS_PLANNER is unset. On a fast platform (a decision every
+    0.25 h, so its stall rules stay off) it must deliver 15/15, delete every VM and stay legal, with the real quota
+    and with 240 vCPUs (the crowding case of test_no_job_starves_when_quota_is_tight)."""
+    import dataclasses
+    from greenops.planner import make_planner
+    tight = dataclasses.replace(spec, quotas=dataclasses.replace(spec.quotas, max_vcpus=240, max_vms=16))
+    for s in (spec, tight):
+        game, planner = run(s, seed, lambda s_, f: make_planner(s_, f))
+        assert planner.name == "carbon-aware/adaptive" and not planner._protect(), "fast platform: stall rules off"
+        assert not game.disqualified and game.score()["delivered"] == 15 and game.score()["all_done"]
+        assert not game.vms, "every VM is deleted after delivery"
+
+
 def test_planning_never_crashes_near_the_end_of_the_run(spec):
     """A created job whose remaining work runs past hour 120 used to index past the cost array (IndexError),
     which in a live run would fail every poll. It must fall back to running every hour instead."""
@@ -165,15 +180,19 @@ def test_a_slow_platform_makes_created_jobs_pause_less(spec):
 
 
 def test_planner_profiles(spec):
-    """GREENOPS_PLANNER picks a named configuration; the default is the judged one, unknown names fail fast."""
-    from greenops.planner import PROFILES, make_planner
-    d, r2 = make_planner(spec, lambda a, n: [100.0] * 24), make_planner(spec, lambda a, n: [100.0] * 24, "run2plus")
-    assert (d.slack_h, d.finish_h, d.rescue) == (Planner.slack_h, Planner.finish_h, True)
+    """GREENOPS_PLANNER picks a named configuration; with none set (or "default") the image runs adaptive, the
+    judged configuration; "safe" keeps every rule always on; unknown names fail fast."""
+    from greenops.planner import DEFAULT_PROFILE, PROFILES, make_planner
+    f = lambda a, n: [100.0] * 24
+    d, r2, safe = make_planner(spec, f), make_planner(spec, f, "run2plus"), make_planner(spec, f, "safe")
+    assert DEFAULT_PROFILE == "adaptive" and d.name == make_planner(spec, f, "default").name == "carbon-aware/adaptive"
+    assert (d.slack_h, d.commit_h, d.protect_gap_h, d.rescue) == (0, -1, 0.75, True)
+    assert (safe.slack_h, safe.finish_h, safe.protect_gap_h, safe.rescue) == (Planner.slack_h, Planner.finish_h, 0, True)
     assert (r2.slack_h, r2.commit_h, r2.finish_h, r2.flat_slack_h, r2.gap_factor) == (0, -1, 0, 0, 0)
     assert r2.rescue and r2.urgent_late, "run2plus keeps the zero-cost protections"
     with pytest.raises(ValueError):
         make_planner(spec, lambda a, n: [100.0] * 24, "nope")
-    assert set(PROFILES) == {"default", "run2plus", "adaptive"}
+    assert set(PROFILES) == {"safe", "run2plus", "adaptive"}
 
 
 def test_adaptive_profile_protects_only_once_the_platform_is_slow(spec):
@@ -186,4 +205,4 @@ def test_adaptive_profile_protects_only_once_the_platform_is_slow(spec):
     assert not p._protect()
     p.gap_h = 3.0
     assert p._protect() and p._flat_slack() >= p.gap_factor * 3.0
-    assert make_planner(spec, lambda a, n: [100.0] * 24)._protect(), "the default profile always protects"
+    assert make_planner(spec, lambda a, n: [100.0] * 24, "safe")._protect(), "the safe profile always protects"

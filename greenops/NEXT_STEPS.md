@@ -33,11 +33,16 @@
   on a slow one.
 - **Run 9** (720×): `-e GREENOPS_PLANNER=adaptive`, i.e. run 2's planning on a fast platform, with the protections
   switching on when the platform turns slow (ADR-0017). Compare it with run 2 on the dashboard.
-- **Decision for Sunday:** the judges run the image **without** `GREENOPS_PLANNER`, so the submitted commit's
-  `default` profile is what is judged. If run 10 confirms run 9, make the default behave like `adaptive`
-  (one-line change in `PROFILES`/`Planner` defaults plus test updates) before submitting. Otherwise submit
-  `main` as it is. `run2-code` is the frozen reference, not a candidate: the review (#30) confirms it lacks
-  every fix from runs 3–6.
+- **Decision made (ADR-0018):** `adaptive` is now the default profile, i.e. what the judged image runs with no
+  `GREENOPS_PLANNER` set. Runs 9 and 10 with it scored 12 and 1.35 points below run 2, with every safety net on.
+  `safe` keeps every rule always on; tag `run10-code` (1a5a69a) is the exact code of run 10 and `run2-code`
+  (1e1a7702) that of run 2. Run 11 checks the new default with no environment variable at all.
+- **What `adaptive` did in runs 9 and 10** (`console.log`): no poll took over 2 wall s, so the reply gap stayed
+  under 0.75 simulated hours and the stall rules never switched on: both runs planned like run 2 throughout.
+  The margin is thin: at 720× a 1 s sleep plus a poll of about 2.75 s crosses it, and the rules then stay on
+  for the rest of the run. Run 10's tightest job (w-14) finished 2.03 h before its deadline, i.e. at `margin_h`.
+- **Submission:** fields and paste-ready build/run instructions in `SUBMISSION.md`. The SHA and the claimed run
+  are recorded in `.local/SESSION_HANDOFF.md`.
 - **Pitch:** private deck "GreenOps jury pitch" (Claude artifact, 11 slides) built with the personal
   `pitch-deck` skill. Its fact sheet is `~/.claude/skills/pitch-deck/references/greenops-hackathon.md`
   (outside the repo). Before presenting: add run 10, check names, share it.

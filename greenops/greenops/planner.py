@@ -413,12 +413,14 @@ class Planner:
         self.decisions.append({"t": round(now, 2), "workload": wid, "action": action, "reason": reason, **kw})
 
 
-# Named settings for live runs (GREENOPS_PLANNER). "default" is the tested, judged configuration.
+# Named settings for live runs (GREENOPS_PLANNER). With no variable set the image runs DEFAULT_PROFILE, which is
+# what the judges get. Practice runs 9 and 10 (adaptive) matched our best score with every safety net on.
 # "run2plus" plans like practice run 2 (no soft end, no kept starts, pauses until the end) but keeps every
 # protection that costs nothing on a normal run: no job may starve, the end-of-run fix, and the whole live
 # loop. Offline it gains ~0.3% on a fast platform and loses the bonus on most grids when the platform is slow.
+DEFAULT_PROFILE = "adaptive"
 PROFILES = {
-    "default": {},
+    "safe": {},                        # every safety rule always on (practice runs 7 and 8)
     "run2plus": dict(slack_h=0, commit_h=-1, finish_h=0, flat_slack_h=0, gap_factor=0),
     # run 2's planning while the platform answers quickly; default's stall protections switch on by themselves
     # once a gap between status replies exceeds 0.75 simulated hours (about 4 wall seconds at 720x)
@@ -426,7 +428,8 @@ PROFILES = {
 }
 
 
-def make_planner(spec, forecast, profile: str = "default") -> Planner:
+def make_planner(spec, forecast, profile: str = DEFAULT_PROFILE) -> Planner:
+    profile = DEFAULT_PROFILE if profile in ("", "default") else profile
     if profile not in PROFILES:
         raise ValueError(f"unknown planner profile {profile!r}; choose one of {sorted(PROFILES)}")
     return Planner(spec, forecast, name=f"carbon-aware/{profile}", **PROFILES[profile])

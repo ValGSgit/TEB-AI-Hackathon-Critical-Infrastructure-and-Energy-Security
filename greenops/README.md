@@ -37,8 +37,8 @@ Windows checkouts.
 - No job may starve: a job with no slot, or only one past its soft end, is planned right after created jobs
   (`rescue`, `urgent_late`). A created job with at most 12 h of work or of spare time runs straight
   through (`finish_h`, `flat_slack_h`), and the threshold grows with the slowest status reply seen (`gap_factor`).
-- Profiles (`GREENOPS_PLANNER`): `default` (all of the above), `adaptive` (the stall rules switch on only once a
-  status gap exceeds 0.75 simulated hours) and `run2plus`. See ADR-0012 to ADR-0017.
+- Profiles (`GREENOPS_PLANNER`): **`adaptive` (default:** the stall rules switch on only once a status gap
+  exceeds 0.75 simulated hours), `safe` (all of the above, always) and `run2plus`. See ADR-0012 to ADR-0018.
 - The live loop deletes first, sends actions and forecast requests in parallel, reuses this run's last forecast
   when a request fails, and starts unfinished work in safe mode if planning fails (ADR-0014, ADR-0016).
 - Actions each tick: delete (after `final_output_delivered`), stop, start, create. The first create runs
@@ -82,7 +82,7 @@ At most two unfinished practice runs per team. Judging is a fresh run at 720×.
 
 ### Container (what the judges run)
 
-Planner profile: `GREENOPS_PLANNER`: `default` (judged), `adaptive` (run 2's planning until the platform is measured slow) or `run2plus` (ADR-0017).
+Planner profile: `GREENOPS_PLANNER`: `adaptive` (default, judged), `safe` (every rule always on) or `run2plus` (ADR-0017, ADR-0018).
 
 ```bash
 docker build -t greenops greenops
@@ -100,11 +100,11 @@ fetches; the budget is 5 s. (Measured once, 23 Oct, commit `b695511`, before the
 | Policy | Carbon (mean ± sd) | Energy | Score | On time |
 | --- | --- | --- | --- | --- |
 | naive (first legal zone, fastest profile, start at release) | 24.63 ± 0.77 kg | 124.4 kWh | 20,323 | 15/15 |
-| + cleanest zone and efficient hardware | 14.12 ± 0.43 kg | 106.7 kWh | 21,886 | 15/15 |
-| + time shift | 14.07 ± 0.43 kg | 107.3 kWh | 21,894 | 15/15 |
-| carbon-aware (blocks with stop/resume) | 13.73 ± 0.44 kg | 108.1 kWh | 21,945 | 15/15 |
+| + cleanest zone and efficient hardware | 14.10 ± 0.42 kg | 107.2 kWh | 21,889 | 15/15 |
+| + time shift | 14.07 ± 0.42 kg | 106.9 kWh | 21,894 | 15/15 |
+| carbon-aware (blocks with stop/resume, `adaptive`) | 13.35 ± 0.45 kg | 107.9 kWh | 22,013 | 15/15 |
 
-That is −44% against naive, mostly from *where* and *which hardware*. These are synthetic grids. `game.score()`
+That is −46% against naive, mostly from *where* and *which hardware*. These are synthetic grids. `game.score()`
 uses the greenops-score-v2 formula (see the root README), which we confirmed against the platform's
 per-workload breakdown.
 
