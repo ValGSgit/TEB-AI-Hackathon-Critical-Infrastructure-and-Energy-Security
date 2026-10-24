@@ -30,8 +30,14 @@
 - **ADR-0012**: Stop postponing in the planner. Each job is planned to end `slack_h` = 4 h before its latest end when
   that fits; a created job that no longer fits that runs every hour. A start planned within `commit_h` = 2 h is kept
   (placement and hour) and gets quota right after created jobs. Reason: both practice runs delivered `w-05` about
-  2 h before its deadline. Offline (32 seeds): tightest job 2.5 → 6.3 h early, score −7 points. A fraction of the
+  2 h before its deadline. Offline (32 seeds): tightest job 2.5 → 6.3 h early, score −7 points. Live (run 3) it did not stop
+  w-05 from starving; see ADR-0013. A fraction of the
   window and larger buffers were tried and rejected (uneven or "blocked").
+- **ADR-0013**: No job may starve. A job the planner leaves without a slot is marked urgent and planned right after
+  created jobs until it is created; if it still has no slot, created jobs are planned flat out (no pauses), which hands
+  back the quota their pauses would hold late in the run. Spare time is judged on 1 worker, not `max_workers`.
+  Reason: run 3 left `w-05` (up to 10 workers, so it looked flexible) without a slot from hour 79 and lost the
+  completion bonus. Offline with 240 vCPUs: 13.0 → 15.0 of 15 delivered; with the real 320, plans are unchanged.
 - **ADR-0006**: Agent instructions live in `AGENTS.md` (imported by `CLAUDE.md`) plus `docs/context/`. They are in
   English (file names and content), tool-neutral, put the disqualifying rules first, and are updated in the same
   commit as the change they describe. External skills are optional: nothing in the repo depends on them.

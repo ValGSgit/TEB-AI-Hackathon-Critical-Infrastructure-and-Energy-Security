@@ -106,3 +106,15 @@ def test_close_start_is_kept_when_later_hours_look_cleaner(spec, commit_h):
         assert p.plan[wid].placement == slot.placement
     else:
         assert p.plan[wid].start > slot.start
+
+
+@pytest.mark.parametrize("seed", [0, 3])
+def test_no_job_starves_when_quota_is_tight(spec, seed):
+    """Run 3 left w-05 without a slot from hour 65 to the end. With 240 vCPUs instead of 320 the same starvation
+    happens offline without the rescue pass; with it, every job is still delivered on time."""
+    import dataclasses
+    tight = dataclasses.replace(spec, quotas=dataclasses.replace(spec.quotas, max_vcpus=240, max_vms=16))
+    game, _ = run(tight, seed, lambda s, f: Planner(s, f))
+    assert game.score()["delivered"] == 15 and not game.disqualified
+    old, _ = run(tight, seed, lambda s, f: Planner(s, f, rescue=False))
+    assert old.score()["delivered"] < 15, "the stress case must still reproduce the starvation"

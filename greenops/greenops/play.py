@@ -23,6 +23,7 @@ class Naive(Planner):
     def __post_init__(self):
         super().__post_init__()
         self.stretch, self.shift, self.commit_h, self.slack_h = (1.0,), False, -1, 0
+        self.rescue, self.flex_workers = False, 0
 
     def _candidates(self, w, est):
         for z in sorted(self.spec.zones, key=lambda z: z.id):

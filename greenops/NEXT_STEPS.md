@@ -74,9 +74,36 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
 - All run figures in this file come from `python -m greenops.analyze .local/run1 .local/run2`, which cites the
   log line behind each one. Carbon and score are only on the dashboard (by run ID), never in git.
 
+## Run 3 (720×, Docker, commit `e509df8`: slack_h + commit_h): a regression
+
+- Same grid as runs 1 and 2 (the AT forecast at hour 0 is identical; `rules.json` pins the scenario).
+- **14/15: `w-05-eu-render` never ran**, so the 5,000-point completion bonus was missed. It was planned for
+  hour 88, then 96, was "blocked" from hour 65 and found no slot from hour 79 to the end
+  (`.local/run3/decisions.jsonl:72–94`; after 79 the log is silent because it only logs state changes).
+  Cause: nothing stopped a job from starving. Its spare time was judged on its maximum of 10 workers, so it
+  looked flexible and was planned last. Created jobs and kept starts reserved their whole blocks first,
+  and w-13/w-15 (2 workers each) took the late vCPU quota. Reproduced offline: with 240 instead of 320
+  vCPUs, w-05 starves on every synthetic seed. The 4 h buffer did not prevent this.
+- **The controller stalled.** Only 72 hourly status samples (run 2: 118). Hours 80–82, 86–87, 92, 94–95
+  and 98 have none: up to ~4.7 simulated hours (~23 wall s) without a poll. In those gaps nothing happens.
+  Deliveries were noticed late, and VMs idled for hours after delivery (w-12: delivered 97.2, our delete
+  99.8, the platform's 102.1). The logs had no wall-clock timings, so the cause is not known yet.
+- Otherwise: 0 refused actions, qualified, and the other 14 jobs were on time (`python -m greenops.analyze
+  .local/run1 .local/run2 .local/run3`). A duplicate `create` line at t=0 is a log duplicate (one VM only).
+
 ## Plan, in order
 
-1. **Stop the postponing** (`planner.py`, `_replan`): mostly done, not yet tried live.
+0. **Before the next run (fix/no-starvation):**
+   - Done, rescue pass (ADR-0013): a job left without a slot becomes urgent. It is planned right after
+     created jobs until it is created. If it still has no slot, created jobs are planned flat out. Spare
+     time is judged on 1 worker. Offline with 240 vCPUs: 13.0 → 15.0/15 on 6 seeds. With 320: unchanged.
+     Test: `test_no_job_starves_when_quota_is_tight`.
+   - Done, slow-poll logging: any poll over 2 s prints `slow_poll_s` with the status/plan/act split to the
+     console. Read `console.log` after run 4 and fix what it shows (forecast caching, deleting before
+     re-planning, a shorter `--poll`).
+   - Run 4 the same way as run 3, then `python -m greenops.analyze .local/run{2,3,4}` and the dashboard.
+
+1. **Stop the postponing** (`planner.py`, `_replan`): done offline; live, run 3 shows it is not enough on its own.
    - Done, `slack_h=4`: each job is planned to end 4 h before its latest end when that fits. A created job
      that no longer fits that runs every hour instead of pausing. This is where the gain comes from: created
      jobs stopped drifting to the deadline.
@@ -87,15 +114,12 @@ Git push: the `origin` remote uses SSH with a passphrase. Without a prompt:
      carbon +0.2%, 15/15 on time, no "blocked". Tried instead: 5% of the window and a 6 h buffer gave an
      uneven worst case; 7–15% of the window and an 8 h buffer brought "blocked" back. Tests: seeds 11/12
      need ≥ 5 h slack on every job and no "blocked".
-   - Open: seed 14 still delivers w-05 only 2.3 h early. It is created at hour 70 on 1 worker because quota
-     for 2 workers is taken. That is quota crowding: plan the jobs that need the most quota earlier, or
-     reserve capacity in the last 24–36 h.
+   - Quota crowding (seed 14 offline, w-05 in run 3 live) is handled by the rescue pass in item 0.
 2. ~~Never exit mid-run~~: done in #9. Every error except `ResidencyViolation` is logged and retried on the
    next poll.
 3. **Check carbon offline:** `python -m greenops.play --seeds 8` before and after each change; keep 15/15 on
    time.
-4. ~~Second practice run at 720× in Docker~~: done (run 2, above). After item 1, do run 3 the same way and
-   compare on the dashboard.
+4. ~~Practice runs at 720× in Docker~~: runs 2 and 3 (above). Next: run 4 after item 0.
 5. **Created jobs can adapt** (planner):
    - Add workers up to `max_workers` when slack gets low (w-06 was stuck on 1 of 2).
    - Let a created job move its run hours later; stopping costs no electricity.
