@@ -8,13 +8,12 @@ during the event lives here.
 | Path | Contents |
 | --- | --- |
 | `README.md` | The submission: problem, approach, results, architecture, how to run, repo map |
-| `SUBMISSION.md` | Form fields and paste-ready reproducible build/run instructions for the judges |
-| `docs/` | `greenops-challenge-brief.txt` (the organizers' challenge text), `challenge-choice-and-prebuild.md` (challenge choice before the event), `reviews/` (dated code reviews), `context/` (these files) |
+| `docs/` | `greenops-challenge-brief.txt` (the organizers' challenge text), `context/` (these files) |
 | `greenops/` | Primary track: Exoscale Carbon-Aware Cloud Orchestration |
 | `forcegeo/` | Security track (backup): ForceGeo location-trust and Galileo integrity demos |
 | `site/` | Project site: `template.html` + `build.py` (replay data from the offline game on synthetic grids); copies the Control Room and Earth view in. Published by `.github/workflows/pages.yml` |
 | `.github/workflows/tests.yml` | CI: greenops tests (Python 3.12 and 3.13), judged image build, galileo-live build, greenops export/UI/globe build |
-| `AGENTS.md`, `CLAUDE.md`, `.gitignore` | Agent instructions (CLAUDE.md imports AGENTS.md) and ignore rules |
+| `.gitignore` | Ignore rules: credentials, run logs, local clones |
 
 ## greenops/ (primary track)
 
@@ -34,7 +33,6 @@ Product area that contains the scheduler, the decision-explainer UI and the 3D r
 | `greenops/greenops/analyze.py` | `python -m greenops.analyze .local/runN`: what a live run did, from its own logs, with the log line behind every number |
 | `greenops/tests/fake_platform.py` | HTTP fake of the API subset over `game.py`, used to test `live.py` end to end |
 | `greenops/Dockerfile` | Judged image: Python 3.13, unprivileged, read-only root, writes only `/tmp`; `ENTRYPOINT python -m greenops.live` |
-| `greenops/NEXT_STEPS.md` | Status after the practice runs and the ordered plan |
 
 ### Earlier synthetic path (kept for the Control Room and Earth view)
 
